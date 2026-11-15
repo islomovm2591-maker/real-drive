@@ -69,7 +69,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .arrow:hover{background:var(--chip-hi)}
 .arrow svg{width:18px;height:18px}
 .carname{text-align:center;min-width:0}
-.carname h2{margin:0;font-family:var(--f-display);font-size:30px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:1}
+.carname h2{margin:0;font-family:var(--f-display);font-size:26px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;line-height:1}
 .carname p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
 .stats{display:grid;gap:6px}
 .stat{display:grid;grid-template-columns:92px 1fr 84px;align-items:center;gap:10px;font-size:12px}
@@ -186,12 +186,16 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
     <div><div class="brand">Real <b>Drive</b></div><div class="sub">Garaj · mashinani sozlang</div></div>
   </div>
   <div id="panel">
-    <div class="carname" style="text-align:left"><div class="eyebrow" id="locName">Karyer</div><h2 id="carName">Concept R</h2><p id="carDesc">Orqa privod · 6 pog'onali avtomat</p></div>
+    <div class="carsel">
+      <button class="arrow" id="prevCar" aria-label="Oldingi mashina"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="carname"><div class="eyebrow"><span id="carIdx">1 / 2</span> · <span id="locName">Karyer</span></div><h2 id="carName">Concept R</h2><p id="carDesc"></p></div>
+      <button class="arrow" id="nextCar" aria-label="Keyingi mashina"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
     <div class="stats" id="stats"></div>
     <div class="tabs" role="tablist" id="tabs"></div>
     <div class="tabbody" id="tabbody"></div>
     <button class="go" id="goBtn">Haydash <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg></button>
-    <p class="credit">3D model: Eric Chadwick, Darmstadt Graphics Group (CC BY 4.0, Unity Fan modeli asosida). Osmon panoramalari: Poly Haven (CC0).</p>
+    <p class="credit"><span id="carCredit"></span> Osmon panoramalari: Poly Haven (CC0).</p>
   </div>
 </div>
 
@@ -255,7 +259,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
     <button class="mbtn primary" id="mResume">Davom etish</button>
     <button class="mbtn" id="mReset">Qayta boshlash</button>
     <button class="mbtn" id="mGarage">Garajga qaytish</button>
-    <p class="credit">3D model: Eric Chadwick, Darmstadt Graphics Group (CC BY 4.0). Osmon panoramalari: Poly Haven (CC0).</p>
+    <p class="credit">3D modellar mualliflari garajda ko'rsatilgan. Osmon panoramalari: Poly Haven (CC0).</p>
   </div>
 </div>
 
@@ -405,15 +409,15 @@ let openGround=null;
 function ensureGround(){
   if(openGround) return openGround;
   const t=grassTex().clone(); t.needsUpdate=true; t.repeat.set(9000/9,9000/9);
-  openGround=new THREE.Mesh(new THREE.PlaneGeometry(9000,9000).rotateX(-Math.PI/2), new THREE.MeshStandardMaterial({map:t,roughness:1}));
-  openGround.position.y=-.05; openGround.receiveShadow=true; scene.add(openGround); return openGround;
+  openGround=new THREE.Mesh(new THREE.PlaneGeometry(9000,9000,90,90).rotateX(-Math.PI/2), new THREE.MeshStandardMaterial({map:t,roughness:1}));
+  openGround.position.y=-.1; openGround.receiveShadow=true; scene.add(openGround); return openGround;
 }
 const markMat=new THREE.MeshStandardMaterial({color:0xecece6,roughness:.75,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-8});
 const yellowMat=new THREE.MeshStandardMaterial({color:0xe0b43a,roughness:.75,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-8});
 const flatQuad=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
 function quads(list,mat,y=.016){ const im=new THREE.InstancedMesh(flatQuad,mat,list.length); const m=new THREE.Matrix4(), q=new THREE.Quaternion(), up=new THREE.Vector3(0,1,0);
   list.forEach(([x,z,sx,sz,r=0],k)=>{ q.setFromAxisAngle(up,r); m.compose(new THREE.Vector3(x,y,z),q,new THREE.Vector3(sx,1,sz)); im.setMatrixAt(k,m); }); im.receiveShadow=true; return im; }
-function slab(w,l,x,z,mat,repW=10){ const g=new THREE.PlaneGeometry(w,l).rotateX(-Math.PI/2); const uv=g.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,uv.getX(i)*w/repW,uv.getY(i)*l/repW);
+function slab(w,l,x,z,mat,repW=10){ const g=new THREE.PlaneGeometry(w,l,Math.max(1,Math.round(w/60)),Math.max(1,Math.round(l/60))).rotateX(-Math.PI/2); const uv=g.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,uv.getX(i)*w/repW,uv.getY(i)*l/repW);
   const m=new THREE.Mesh(g,mat); m.position.set(x,.01,z); m.receiveShadow=true; return m; }
 function textPlane(txt,w,h){ const t=canvasTex(256,256,(g)=>{ g.clearRect(0,0,256,256); g.fillStyle='#ecece6'; g.font='bold 200px Arial'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(txt,128,140); });
   const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h).rotateX(-Math.PI/2), new THREE.MeshStandardMaterial({map:t,transparent:true,roughness:.75,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-8})); m.position.y=.017; return m; }
@@ -510,7 +514,20 @@ function updateLap(dt){
 }
 
 /* ================= car (real glTF model) ================= */
-const CAR={name:'Concept R', hp:620, mass:1480, top:325, grip:13, steer:.6, awd:false};
+const CARS={
+  concept:{name:'Concept R', desc:"Konsept superkar · orqa privod", file:'assets/car.glb', hp:620, mass:1480, top:325, grip:13, steer:.6,
+    wheels:['WheelFrontL','WheelFrontR','WheelRearL','WheelRearR'], pads:['WheelFrontLBrakePad','WheelFrontRBrakePad','WheelRearLBrakePad','WheelRearRBrakePad'],
+    paint:['Paint 1 Carmine'], paint2:['Paint 2 Carmine'], rim:['Rim1'], glass:['Glass'], brake:'Brakelight', head:'Headlight',
+    sw:'InteriorSteeringCylinder', plate:'License Plate', hide:['InteriorSteeringEmblem'], color:'#a80000', color2:'#101010', rimColor:'#020202',
+    credit:'3D model: Eric Chadwick, Darmstadt Graphics Group (CC BY 4.0, Unity Fan modeli asosida).'},
+  dodge:{name:'Dodge Challenger LB', desc:"Keng kuzovli muskul-kar · V8 kompressor", file:'assets/dodge.glb', hp:717, mass:1990, top:320, grip:11.5, steer:.58,
+    wheels:['3DWheel Front L','3DWheel Front R','3DWheel Rear L','3DWheel Rear R'], pads:['Calliper Front L_06','Calliper Front R_07','Calliper Rear L_08','Calliper Rear R_09'],
+    paint:['CarPaint','CarPAint_N'], paint2:['CarPaint_Trim','CarPAint_Plastic'], rim:['Rim_C1'], glass:['Windwos'], brake:'red_glass', head:'Light',
+    eye:[.36,1.07,.02], color:'#0f1012', color2:'#101010', rimColor:'#020202',
+    credit:'3D model: "2015 Dodge Challenger LB★PERFORMANCE", Ddiaz Design, Sketchfab (CC BY-NC-SA 4.0, notijorat).'},
+};
+let carKey=store.get('carKey','concept'); if(!CARS[carKey]) carKey='concept';
+let CAR=CARS[carKey];
 const PAINTS=['#a80000','#e9ebee','#0f1012','#9be021','#1d4fd6','#f2b705','#7a7f86','#23324a','#ff6a13','#5b2a86','#0e5e4f','#c0c4c8'];
 const PAINTS2=['#101010','#e9ebee','#7a7f86','#a80000','#23324a','#c9a24a'];
 const RIMS=['#020202','#c9ccd1','#c9a24a','#55595f','#f2f2f2','#a80000'];
@@ -519,8 +536,9 @@ const STAGES=['Standart','Stage 1','Stage 2','Stage 3'];
 const STAGE_MULT=[1,1.15,1.3,1.5];
 const TIRES={street:["Ko'cha",'Muvozanatli'], sport:['Sport',"Ko'proq yopishish"], drift:['Drift','Sirpanishga oson']};
 const FINISH={metal:'Metallik', gloss:'Yaltiroq', mat:'Mat', pearl:'Sadaf'};
-const defaultTune=()=>({color:'#a80000', color2:'#101010', finish:'metal', rim:'#020202', tint:.5, height:0, engine:0, tire:'street', neon:null});
-const tune=Object.assign(defaultTune(), store.get('tune',{}));
+const defaultTune=(k=carKey)=>({color:CARS[k].color, color2:CARS[k].color2, finish:'metal', rim:CARS[k].rimColor, tint:.5, height:0, engine:0, tire:'street', neon:null});
+const loadTune=k=>Object.assign(defaultTune(k), store.get('tune_'+k, k==='concept'?store.get('tune',{}):{}));
+let tune=loadTune(carKey);
 
 const car={};
 function paintProps(m,f){
@@ -548,93 +566,111 @@ function plateTex(text){
 const glowTex=canvasTex(128,128,(g,w,h)=>{ const gr=g.createRadialGradient(w/2,h/2,2,w/2,h/2,w/2); gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(.5,'rgba(255,255,255,.4)'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(0,0,w,h); },false);
 const aoTex=canvasTex(128,128,(g,w,h)=>{ const gr=g.createRadialGradient(w/2,h/2,4,w/2,h/2,w/2); gr.addColorStop(0,'rgba(0,0,0,.85)'); gr.addColorStop(.6,'rgba(0,0,0,.45)'); gr.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=gr; g.fillRect(0,0,w,h); },false);
 
-async function loadCar(){
-  const url=await assetURL('assets/car.glb','glTF',p=>{ $('#loadbar').classList.add('det'); $('#loadbar i').style.width=(p*100).toFixed(0)+'%'; $('#loadbar i').style.transform='none'; $('#loadpct').textContent=Math.round(p*100)+'%'; });
+const rigs={};
+const san=n=>THREE.PropertyBinding.sanitizeNodeName(n);
+async function buildRig(key,onP){
+  const C=CARS[key], rig={};
+  const url=await assetURL(C.file,'glTF',onP);
   const gltf=await new GLTFLoader().loadAsync(url); URL.revokeObjectURL(url);
-  const src=gltf.scene;
+  const src=gltf.scene; const find=n=>src.getObjectByName(n)||src.getObjectByName(san(n));
   const mats={};
-  src.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; const ms=Array.isArray(o.material)?o.material:[o.material]; ms.forEach(m=>{ if(m.name) mats[m.name]=m; }); } });
+  src.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; o.frustumCulled=false; const ms=Array.isArray(o.material)?o.material:[o.material]; ms.forEach(m=>{ if(m.name) mats[m.name]=m; }); } });
   // glass: cheap transparent glass instead of a full transmission pass (much faster on phones)
   const glass=new THREE.MeshPhysicalMaterial({color:0x0b0f13, roughness:0, metalness:0, transparent:true, side:THREE.DoubleSide, depthWrite:false, envMapIntensity:1.3});
-  src.traverse(o=>{ if(o.isMesh && o.material && o.material.name==='Glass'){ o.material=glass; o.castShadow=false; } });
-  car.glass=glass; car.paint=mats['Paint 1 Carmine']; car.paint2=mats['Paint 2 Carmine']; car.rim=mats['Rim1'];
-  car.brake=mats['Brakelight']; car.head=mats['Headlight'];
-  car.brakeBase=car.brake?car.brake.emissiveIntensity:2;
-  // hide third-party logos
-  for(const n of ['InteriorSteeringEmblem']){ const o=src.getObjectByName(n); if(o) o.visible=false; }
+  src.traverse(o=>{ if(!o.isMesh||!o.material) return;
+    if(C.glass.includes(o.material.name)){ o.material=glass; o.castShadow=false; }
+    else if(o.material.transmission>0){ o.material.transmission=0; o.material.transparent=true; o.material.opacity=.45; o.material.depthWrite=false; o.castShadow=false; } });
+  const pick=l=>(l||[]).map(n=>mats[n]).filter(Boolean);
+  rig.glass=glass; rig.paints=pick(C.paint); rig.paints2=pick(C.paint2); rig.rims=pick(C.rim);
+  rig.brake=mats[C.brake]; rig.head=mats[C.head];
+  if(rig.brake){ if(rig.brake.emissive.getHex()===0 && !rig.brake.emissiveMap){ rig.brake.emissive.set(0xff1408); rig.brake.emissiveIntensity=.35; rig.brake.opacity=.9; } rig.brakeBase=rig.brake.emissiveIntensity; }
+  if(rig.head) rig.headBase=rig.head.emissiveIntensity;
+  for(const n of C.hide||[]){ const o=find(n); if(o) o.visible=false; }
 
-  const box=new THREE.Box3().setFromObject(src);
-  // Wheels: the modeller left the front wheels pre-steered (~30 deg), so each wheel is re-aligned
-  // to the car's cross axis and then spun around its real axle (node origin = wheel centre).
   src.updateMatrixWorld(true);
+  let box=new THREE.Box3().setFromObject(src);
+  const len0=Math.max(box.max.z-box.min.z, box.max.x-box.min.x);
+  if(len0<3||len0>6.5){ src.scale.multiplyScalar(4.8/len0); src.updateMatrixWorld(true); box=new THREE.Box3().setFromObject(src); }
+  // Wheels: re-align each wheel to the car's cross axis (some models ship pre-steered wheels),
+  // then spin it around its real axle (node origin = wheel centre).
   const wheelsInfo=[], X=new THREE.Vector3(1,0,0);
-  for(const n of ['WheelFrontL','WheelFrontR','WheelRearL','WheelRearR']){
-    const node=src.getObjectByName(n);
+  C.wheels.forEach((n,i)=>{
+    const node=find(n); if(!node) throw new Error('wheel '+n);
     const c=node.getWorldPosition(new THREE.Vector3());
     const axle=new THREE.Vector3().setFromMatrixColumn(node.matrixWorld,0).normalize();
-    const sc=new THREE.Vector3().setFromMatrixScale(node.matrixWorld);
-    wheelsInfo.push({node, c, axle, r:.3607*sc.y, front:n.includes('Front'), pad:src.getObjectByName(n+'BrakePad')});
-  }
+    if(Math.abs(axle.x)<.5) axle.set(1,0,0);
+    wheelsInfo.push({node, c, axle, front:i<2, pad:C.pads?find(C.pads[i]):null});
+  });
   const flip = wheelsInfo[0].c.z<0;
   const root=new THREE.Group();            // heading/position (forward = +z)
   const model=new THREE.Group(); if(flip) model.rotation.y=Math.PI; root.add(model);
   const chassis=new THREE.Group(); model.add(chassis);   // body (rolls / pitches / height)
-  car.wheels=[]; const wbox=new THREE.Box3();
+  rig.wheels=[]; const wbox=new THREE.Box3();
   for(const w of wheelsInfo){
     const pivot=new THREE.Group(); pivot.position.copy(w.c);
     const spin=new THREE.Group(); pivot.add(spin); pivot.updateMatrixWorld(true);
     spin.attach(w.node);
     const q=new THREE.Quaternion().setFromUnitVectors(w.axle, X.clone().multiplyScalar(Math.sign(w.axle.x)||1));
     w.node.quaternion.premultiply(q); w.node.position.applyQuaternion(q); w.node.updateMatrixWorld(true);
+    wbox.expandByObject(spin);
     if(w.pad) pivot.attach(w.pad);             // caliper steers with the wheel but does not spin
-    wbox.expandByObject(pivot);
-    model.add(pivot); car.wheels.push({pivot,spin,front:w.front,r:w.r});
+    model.add(pivot); rig.wheels.push({pivot,spin,front:w.front,r:.35});
   }
   model.position.y=-wbox.min.y;            // tyres touch the ground
-  for(const w of car.wheels) w.r=(wbox.max.y-wbox.min.y)/2;
+  for(const w of rig.wheels) w.r=(wbox.max.y-wbox.min.y)/2;
   chassis.add(src);
-  car.wheelR=wheelsInfo[0].r;
-  car.wb=Math.abs(wheelsInfo[0].c.z-wheelsInfo[2].c.z);
-  car.L=box.max.z-box.min.z; car.W=Math.min(2.05,box.max.x-box.min.x); car.H=box.max.y-box.min.y;
-  car.flip=flip;
+  rig.wb=Math.abs(wheelsInfo[0].c.z-wheelsInfo[2].c.z);
+  rig.L=box.max.z-box.min.z; rig.W=Math.min(2.05,box.max.x-box.min.x); rig.H=box.max.y-box.min.y;
+  rig.flip=flip;
+  root.updateMatrixWorld(true);
+  const toChassis=(x,y,z)=>chassis.worldToLocal(new THREE.Vector3(x,y,z));   // car space (left +x, up from ground, forward +z) -> chassis space
   // steering wheel
-  const sw=src.getObjectByName('InteriorSteeringCylinder');
+  const sw=C.sw&&find(C.sw);
   if(sw){ const b=new THREE.Box3().setFromObject(sw); const c=b.getCenter(new THREE.Vector3());
     const piv=new THREE.Group(); piv.position.copy(c); src.add(piv); piv.updateMatrixWorld(true); piv.attach(sw);
-    car.sw=piv; car.swAxis=new THREE.Vector3(0,-.35,flip?-1:1).normalize(); car.swC=c.clone(); }
-  // camera anchors (model space)
-  const sc=car.swC||new THREE.Vector3(.4,.75,.4);
-  const fz=flip?-1:1;
-  car.eye=new THREE.Vector3(sc.x, sc.y+.3, sc.z-fz*.55);
-  car.eyeLook=new THREE.Vector3(sc.x, sc.y+.1, sc.z+fz*10);
-  car.hood=new THREE.Vector3(0, box.max.y*.82, fz*Math.abs(wheelsInfo[0].c.z)*.25);
-  car.hoodLook=new THREE.Vector3(0, box.max.y*.7, fz*12);
-  // number plates (replace the stock plate)
-  const lp=src.getObjectByName('License Plate');
+    rig.sw=piv; rig.swAxis=new THREE.Vector3(0,-.35,flip?-1:1).normalize(); rig.swC=c.clone(); }
+  // camera anchors
+  if(C.eye){ const [ex,ey,ez]=C.eye; rig.eye=toChassis(ex,ey,ez); rig.eyeLook=toChassis(ex,ey-.18,ez+10); }
+  else { const sc=rig.swC||new THREE.Vector3(.4,.75,.4), fz=flip?-1:1;
+    rig.eye=new THREE.Vector3(sc.x, sc.y+.3, sc.z-fz*.55); rig.eyeLook=new THREE.Vector3(sc.x, sc.y+.1, sc.z+fz*10); }
+  const hoodZ=rig.wb/2*.25, hoodY=rig.H*.9;
+  rig.hood=toChassis(0,hoodY,hoodZ); rig.hoodLook=toChassis(0,hoodY-.12,hoodZ+12);
+  // number plate (replace the stock plate where the model has a separate one)
+  const lp=C.plate&&find(C.plate);
   if(lp){ const b=new THREE.Box3().setFromObject(lp); const c=b.getCenter(new THREE.Vector3()); const sz=b.getSize(new THREE.Vector3()); lp.visible=false;
     const pl=new THREE.Mesh(new THREE.PlaneGeometry(Math.max(.45,sz.x),Math.max(.1,sz.x*.22)), new THREE.MeshStandardMaterial({map:plateTex('01 R 777 DR'),roughness:.4}));
-    pl.position.copy(c); pl.position.z+=Math.sign(c.z)*.012; if(c.z<0) pl.rotation.y=Math.PI; src.add(pl); }
+    lp.parent.worldToLocal(c); pl.position.copy(c); pl.quaternion.copy(lp.quaternion); lp.parent.add(pl); rig.plate=pl; }
   // contact shadow + neon
   const ao=new THREE.Mesh(new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2), new THREE.MeshBasicMaterial({map:aoTex,transparent:true,depthWrite:false}));
-  ao.scale.set(car.W*1.25,1,car.L*1.1); ao.position.y=.012; root.add(ao);
-  car.neonMat=new THREE.MeshBasicMaterial({map:glowTex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
-  car.neon=new THREE.Mesh(ao.geometry,car.neonMat); car.neon.scale.set(car.W*1.9,1,car.L*1.3); car.neon.position.y=.016; root.add(car.neon);
+  ao.scale.set(rig.W*1.25,1,rig.L*1.1); ao.position.y=.012; root.add(ao);
+  rig.neonMat=new THREE.MeshBasicMaterial({map:glowTex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
+  rig.neon=new THREE.Mesh(ao.geometry,rig.neonMat); rig.neon.scale.set(rig.W*1.9,1,rig.L*1.3); rig.neon.position.y=.016; root.add(rig.neon);
   // headlight beam for the evening
-  const spot=new THREE.SpotLight(0xf2f6ff,0,90,.5,.6,1.5); spot.position.set(0,.7,car.L/2-.2);
-  const tgt=new THREE.Object3D(); tgt.position.set(0,0,car.L/2+20); root.add(spot,tgt); spot.target=tgt; car.spot=spot;
-  car.root=root; car.model=model; car.chassis=chassis;
-  scene.add(root);
+  const spot=new THREE.SpotLight(0xf2f6ff,0,90,.5,.6,1.5); spot.position.set(0,.7,rig.L/2-.2);
+  const tgt=new THREE.Object3D(); tgt.position.set(0,0,rig.L/2+20); root.add(spot,tgt); spot.target=tgt; rig.spot=spot;
+  rig.root=root; rig.model=model; rig.chassis=chassis;
+  return rig;
+}
+async function useCar(key,onP){
+  if(!rigs[key]) rigs[key]=await buildRig(key,onP);
+  const pos=car.root?car.root.position.clone():null, rot=car.root?car.root.rotation.y:0;
+  if(car.root) scene.remove(car.root);
+  for(const k of Object.keys(car)) delete car[k];
+  Object.assign(car,rigs[key]);
+  carKey=key; CAR=CARS[key]; store.set('carKey',key); tune=loadTune(key);
+  if(pos){ car.root.position.copy(pos); car.root.rotation.y=rot; }
+  scene.add(car.root);
   applyTune();
 }
 function applyTune(){
-  if(car.paint){ car.paint.color.set(tune.color); paintProps(car.paint,tune.finish); }
-  if(car.paint2){ car.paint2.color.set(tune.color2); }
-  if(car.rim){ car.rim.color.set(tune.rim); }
+  for(const m of car.paints){ m.color.set(tune.color); paintProps(m,tune.finish); }
+  for(const m of car.paints2) m.color.set(tune.color2);
+  for(const m of car.rims) m.color.set(tune.rim);
   car.glass.opacity=camMode===1?.08:.25+tune.tint*.65;
   car.chassis.position.y=tune.height;
   car.neon.visible=!!tune.neon; if(tune.neon) car.neonMat.color.set(tune.neon);
   player.phys=makePhys();
-  store.set('tune',tune);
+  store.set('tune_'+carKey,tune);
 }
 function makePhys(){
   const st=STAGE_MULT[tune.engine];
@@ -701,7 +737,7 @@ let drift={score:0,t:0,active:false}, best=store.get('best',0);
 function setLights(on,silent){
   player.lights=on;
   if(car.spot) car.spot.intensity=on&&state==='drive'?420:0;
-  if(car.head) car.head.emissiveIntensity=on?16:8;
+  if(car.head) car.head.emissiveIntensity=car.headBase*(on?2:1);
   $('#bLights').setAttribute('aria-pressed',String(on));
   if(!silent) toast(on?'Faralar yoqildi':"Faralar o'chirildi");
 }
@@ -951,7 +987,20 @@ const TABS=[['paint','Rang'],['paint2','2-rang'],['rims','Disklar'],['tint','Oyn
 const fmtH=v=>{ const cm=Math.round(v*100); return cm===0?'Standart':(cm>0?'+':'')+cm+' sm'; };
 function statOf(t){ const st=STAGE_MULT[t.engine]; const tire={street:1,sport:1.16,drift:.8}[t.tire];
   return {hp:Math.round(CAR.hp*st), top:Math.round(CAR.top*(1+.035*t.engine)), acc:clamp(.55+t.engine*.12,0,1), grip:clamp(CAR.grip*tire*(1-t.height*1.4)/17,0,1)}; }
+let carBusy=false;
+async function switchCar(d){
+  if(carBusy) return; carBusy=true;
+  const keys=Object.keys(CARS), k=keys[(keys.indexOf(carKey)+d+keys.length)%keys.length];
+  if(!rigs[k]) toast('Mashina yuklanmoqda…');
+  try{ await useCar(k,p=>toast('Mashina yuklanmoqda… '+Math.round(p*100)+'%')); placeCarGarage(); renderGarage(); if(rigs[k]) toast(CARS[k].name); }
+  catch(e){ toast("Mashinani yuklab bo'lmadi"); }
+  carBusy=false;
+}
+$('#prevCar').addEventListener('click',e=>{ e.stopPropagation(); switchCar(-1); });
+$('#nextCar').addEventListener('click',e=>{ e.stopPropagation(); switchCar(1); });
 function renderGarage(){
+  const keys=Object.keys(CARS);
+  $('#carIdx').textContent=(keys.indexOf(carKey)+1)+' / '+keys.length; $('#carName').textContent=CAR.name; $('#carDesc').textContent=CAR.desc; $('#carCredit').textContent=CAR.credit;
   const st=statOf(tune), base=statOf(defaultTune());
   const rows=[['Quvvat',st.hp/1000,`${st.hp} o.k.`,st.hp>base.hp],['Maks. tezlik',st.top/380,`${st.top} km/soat`,st.top>base.top],['Tezlanish',st.acc,`${Math.round(st.acc*100)}`,st.acc>base.acc+.001],['Boshqaruv',st.grip,`${Math.round(st.grip*100)}`,st.grip>base.grip+.001]];
   $('#stats').innerHTML=rows.map(([l,v,txt,up])=>`<div class="stat"><span>${l}</span><div class="bar"><i class="${up?'up':''}" style="width:${(clamp(v,0,1)*100).toFixed(0)}%"></i></div><b>${txt}</b></div>`).join('');
@@ -970,7 +1019,7 @@ function renderGarage(){
   $('#tabbody').innerHTML=h;
 }
 $('#panel').addEventListener('click',async e=>{
-  const el=e.target.closest('button'); if(!el||el.id==='goBtn') return; const ds=el.dataset;
+  const el=e.target.closest('button'); if(!el||el.id==='goBtn'||el.classList.contains('arrow')) return; const ds=el.dataset;
   if(ds.tab){ tab=ds.tab; store.set('tab',tab); }
   else if(ds.paint!==undefined) tune.color=ds.paint;
   else if(ds.paint2!==undefined) tune.color2=ds.paint2;
@@ -1116,7 +1165,7 @@ function frame(now){
   setQuality(quality);
   try{
     const locP=loadLocation(locKey);
-    await loadCar();
+    await useCar(carKey,p=>{ $('#loadbar').classList.add('det'); $('#loadbar i').style.width=(p*100).toFixed(0)+'%'; $('#loadbar i').style.transform='none'; $('#loadpct').textContent=Math.round(p*100)+'%'; });
     $('#loadmsg').textContent='Joy tayyorlanmoqda…';
     await locP;
   }catch(err){ failLoad("O'yin fayllarini yuklab bo'lmadi. Internetni tekshirib, sahifani yangilang."); throw err; }
