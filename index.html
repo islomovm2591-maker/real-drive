@@ -278,6 +278,7 @@ window.addEventListener('error', function(e){
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -525,18 +526,31 @@ const CARS={
     paint:['CarPaint','CarPAint_N'], paint2:['CarPaint_Trim','CarPAint_Plastic'], rim:['Rim_C1'], glass:['Windwos'], brake:'red_glass', head:'Light',
     eye:[.36,1.07,.02], color:'#0f1012', color2:'#101010', rimColor:'#020202',
     credit:'3D model: "2015 Dodge Challenger LB★PERFORMANCE", Ddiaz Design, Sketchfab (CC BY-NC-SA 4.0, notijorat).'},
+  f40:{name:'Ferrari F40 LB-Works', desc:"Keng kuzovli afsona · V8 biturbo", file:'assets/f40.glb', hp:520, mass:1250, top:324, grip:12.8, steer:.58,
+    wheels:['Tire.001_22_45_85','Tire.003_30_67_121','Tire.002_26_56_103','Tire.004_34_78_139'], padRe:'^Brake_',
+    paint:['Paint'], rim:['material'], glass:['Windows','Glass','Glass.front','GlassBack'], brake:'RearLights', eye:[.36,.9,.12],
+    credit:'3D model: "LB-Works Ferrari F40", vecarz, Sketchfab (CC BY-NC-SA 4.0, notijorat).'},
+  merc:{name:'Mercedes-Benz E55 AMG', desc:"W211 sedan · V8 kompressor", file:'assets/merc.glb', hp:476, mass:1835, top:300, grip:10.8, steer:.6,
+    wheels:['WHEEL_LF_463','WHEEL_RF_500','WHEEL_LR_481','WHEEL_RR_518'], pads:['SUSP_LF_381','SUSP_RF_391','SUSP_LR_386','SUSP_RR_396'],
+    paint:['15_-_Glossy_Plastic'], rim:['wheel_paint'], glass:['glass','EXT_GLASSES','BLACK_GLASSES'], brake:'r_glass', sw:'STEER_HR_374', swLocal:true,
+    credit:'3D model: "Mercedes-Benz W211 E55", vecarz, Sketchfab (CC BY-NC 4.0, notijorat).'},
+  porsche:{name:'Porsche 911 GT3 R', desc:"Rennsport poyga mashinasi · 6 silindr", file:'assets/porsche.glb', hp:620, mass:1240, top:305, grip:15, steer:.56,
+    wheels:['WHEEL_LF_323','WHEEL_RF_345','WHEEL_LR_334','WHEEL_RR_356'], pads:['SUSP_LF_297','SUSP_RF_307','SUSP_LR_302','SUSP_RR_312'],
+    paint:['MI_Porsche_992_GT3_R_Rennsport_Livery'], paintKeepMap:true, rim:['MI_Porsche_992_GT3_R_Rennsport_Rim_Inst'], glass:['MI_Porsche_992_GT3_R_Rennsport_windows_Glass_Inst'],
+    head:'MI_Porsche_992_GT3_R_Rennsport_Lights', sw:'STEER_HR_107', swLocal:true, eye:[.34,1.04,-.42],
+    credit:'3D model: "Porsche 911 GT3 R Rennsport", vecarz, Sketchfab (CC BY-NC 4.0, notijorat).'},
 };
 let carKey=store.get('carKey','concept'); if(!CARS[carKey]) carKey='concept';
 let CAR=CARS[carKey];
-const PAINTS=['#a80000','#e9ebee','#0f1012','#9be021','#1d4fd6','#f2b705','#7a7f86','#23324a','#ff6a13','#5b2a86','#0e5e4f','#c0c4c8'];
-const PAINTS2=['#101010','#e9ebee','#7a7f86','#a80000','#23324a','#c9a24a'];
-const RIMS=['#020202','#c9ccd1','#c9a24a','#55595f','#f2f2f2','#a80000'];
+const PAINTS=[null,'#a80000','#e9ebee','#0f1012','#9be021','#1d4fd6','#f2b705','#7a7f86','#23324a','#ff6a13','#5b2a86','#0e5e4f','#c0c4c8'];
+const PAINTS2=[null,'#101010','#e9ebee','#7a7f86','#a80000','#23324a','#c9a24a'];
+const RIMS=[null,'#020202','#c9ccd1','#c9a24a','#55595f','#f2f2f2','#a80000'];
 const NEONS=[null,'#ff2a6d','#2af5ff','#7c4dff','#39ff14','#ffffff'];
 const STAGES=['Standart','Stage 1','Stage 2','Stage 3'];
 const STAGE_MULT=[1,1.15,1.3,1.5];
 const TIRES={street:["Ko'cha",'Muvozanatli'], sport:['Sport',"Ko'proq yopishish"], drift:['Drift','Sirpanishga oson']};
 const FINISH={metal:'Metallik', gloss:'Yaltiroq', mat:'Mat', pearl:'Sadaf'};
-const defaultTune=(k=carKey)=>({color:CARS[k].color, color2:CARS[k].color2, finish:'metal', rim:CARS[k].rimColor, tint:.5, height:0, engine:0, tire:'street', neon:null});
+const defaultTune=(k=carKey)=>({color:CARS[k].color??null, color2:CARS[k].color2??null, finish:'metal', rim:CARS[k].rimColor??null, tint:.5, height:0, engine:0, tire:'street', neon:null});
 const loadTune=k=>Object.assign(defaultTune(k), store.get('tune_'+k, k==='concept'?store.get('tune',{}):{}));
 let tune=loadTune(carKey);
 
@@ -571,7 +585,7 @@ const san=n=>THREE.PropertyBinding.sanitizeNodeName(n);
 async function buildRig(key,onP){
   const C=CARS[key], rig={};
   const url=await assetURL(C.file,'glTF',onP);
-  const gltf=await new GLTFLoader().loadAsync(url); URL.revokeObjectURL(url);
+  const gltf=await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url); URL.revokeObjectURL(url);
   const src=gltf.scene; const find=n=>src.getObjectByName(n)||src.getObjectByName(san(n));
   const mats={};
   src.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; o.frustumCulled=false; const ms=Array.isArray(o.material)?o.material:[o.material]; ms.forEach(m=>{ if(m.name) mats[m.name]=m; }); } });
@@ -599,7 +613,9 @@ async function buildRig(key,onP){
     const c=node.getWorldPosition(new THREE.Vector3());
     const axle=new THREE.Vector3().setFromMatrixColumn(node.matrixWorld,0).normalize();
     if(Math.abs(axle.x)<.5) axle.set(1,0,0);
-    wheelsInfo.push({node, c, axle, front:i<2, pad:C.pads?find(C.pads[i]):null});
+    let pad=C.pads?find(C.pads[i]):null;
+    if(!pad && C.padRe){ const re=new RegExp(C.padRe); node.traverse(o=>{ if(!pad && o!==node && re.test(o.name)) pad=o; }); }
+    wheelsInfo.push({node, c, axle, front:i<2, pad});
   });
   const flip = wheelsInfo[0].c.z<0;
   const root=new THREE.Group();            // heading/position (forward = +z)
@@ -626,7 +642,14 @@ async function buildRig(key,onP){
   const toChassis=(x,y,z)=>chassis.worldToLocal(new THREE.Vector3(x,y,z));   // car space (left +x, up from ground, forward +z) -> chassis space
   // steering wheel
   const sw=C.sw&&find(C.sw);
-  if(sw){ const b=new THREE.Box3().setFromObject(sw); const c=b.getCenter(new THREE.Vector3());
+  if(sw && C.swLocal){   // node origin is the steering centre; the axis is the thin direction of the wheel disc
+    const inv=new THREE.Matrix4().copy(sw.matrixWorld).invert(), lb=new THREE.Box3(), m4=new THREE.Matrix4(), tb=new THREE.Box3();
+    sw.traverse(o=>{ if(o.isMesh){ if(!o.geometry.boundingBox) o.geometry.computeBoundingBox(); m4.multiplyMatrices(inv,o.matrixWorld); lb.union(tb.copy(o.geometry.boundingBox).applyMatrix4(m4)); } });
+    const sz=lb.getSize(new THREE.Vector3()), ax=new THREE.Vector3(sz.x<=sz.y&&sz.x<=sz.z?1:0, sz.y<sz.x&&sz.y<=sz.z?1:0, sz.z<sz.x&&sz.z<sz.y?1:0);
+    const wdir=ax.clone().transformDirection(sw.matrixWorld); if(wdir.z>0) ax.negate();   // point the axis at the driver
+    rig.sw=sw; rig.swBase=sw.quaternion.clone(); rig.swAxis=ax; rig.swSign=-1;
+    const wc=sw.getWorldPosition(new THREE.Vector3()); rig.swC=chassis.worldToLocal(wc); }
+  else if(sw){ const b=new THREE.Box3().setFromObject(sw); const c=b.getCenter(new THREE.Vector3());
     const piv=new THREE.Group(); piv.position.copy(c); src.add(piv); piv.updateMatrixWorld(true); piv.attach(sw);
     rig.sw=piv; rig.swAxis=new THREE.Vector3(0,-.35,flip?-1:1).normalize(); rig.swC=c.clone(); }
   // camera anchors
@@ -662,10 +685,20 @@ async function useCar(key,onP){
   scene.add(car.root);
   applyTune();
 }
+// colour null = the model's original look (its own texture and finish)
+function tint(list,col,keepMap,finish){
+  for(const m of list){
+    const o=m.userData.orig||(m.userData.orig={map:m.map,color:m.color.clone(),metalness:m.metalness,roughness:m.roughness,clearcoat:m.clearcoat||0,clearcoatRoughness:m.clearcoatRoughness||0});
+    const map=(col==null||keepMap)?o.map:null;
+    if(m.map!==map){ m.map=map; m.needsUpdate=true; }
+    if(col==null){ m.color.copy(o.color); m.metalness=o.metalness; m.roughness=o.roughness; if('clearcoat' in m){ m.clearcoat=o.clearcoat; m.clearcoatRoughness=o.clearcoatRoughness; m.iridescence=0; } }
+    else { m.color.set(col); if(finish && 'clearcoat' in m) paintProps(m,finish); }
+  }
+}
 function applyTune(){
-  for(const m of car.paints){ m.color.set(tune.color); paintProps(m,tune.finish); }
-  for(const m of car.paints2) m.color.set(tune.color2);
-  for(const m of car.rims) m.color.set(tune.rim);
+  tint(car.paints,tune.color,!!CAR.paintKeepMap,tune.finish);
+  tint(car.paints2,tune.color2,true);
+  tint(car.rims,tune.rim,true);
   car.glass.opacity=camMode===1?.08:.25+tune.tint*.65;
   car.chassis.position.y=tune.height;
   car.neon.visible=!!tune.neon; if(tune.neon) car.neonMat.color.set(tune.neon);
@@ -922,7 +955,7 @@ function updateDrive(dt){
     if(!lock) w.spin.rotation.x+=p.vL*dt/w.r*sgn;
     if(w.front) w.pivot.rotation.y=p.steer*maxSteer;
   }
-  if(car.sw) car.sw.quaternion.setFromAxisAngle(car.swAxis,-p.steer*maxSteer*8);
+  if(car.sw){ _q.setFromAxisAngle(car.swAxis,-p.steer*maxSteer*8*(car.swSign||1)); if(car.swBase) car.sw.quaternion.copy(car.swBase).multiply(_q); else car.sw.quaternion.copy(_q); }
   const braking=(inp.brk&&!p.reverse)||(inp.thr&&p.reverse)||inp.hb;
   if(car.brake) car.brake.emissiveIntensity=braking?car.brakeBase*5:car.brakeBase;
   // skid marks + drift score
@@ -1005,7 +1038,7 @@ function renderGarage(){
   const rows=[['Quvvat',st.hp/1000,`${st.hp} o.k.`,st.hp>base.hp],['Maks. tezlik',st.top/380,`${st.top} km/soat`,st.top>base.top],['Tezlanish',st.acc,`${Math.round(st.acc*100)}`,st.acc>base.acc+.001],['Boshqaruv',st.grip,`${Math.round(st.grip*100)}`,st.grip>base.grip+.001]];
   $('#stats').innerHTML=rows.map(([l,v,txt,up])=>`<div class="stat"><span>${l}</span><div class="bar"><i class="${up?'up':''}" style="width:${(clamp(v,0,1)*100).toFixed(0)}%"></i></div><b>${txt}</b></div>`).join('');
   $('#tabs').innerHTML=TABS.map(([k,l])=>`<button class="tab" role="tab" data-tab="${k}" aria-selected="${k===tab}">${l}</button>`).join('');
-  const sw=(list,cur,kind)=>`<div class="row">${list.map(c=>`<button class="sw ${c?'':'none'}" data-${kind}="${c||''}" aria-pressed="${c===cur}" aria-label="${c||"o'chirilgan"}" style="${c?`background:${c}`:''}"></button>`).join('')}</div>`;
+  const sw=(list,cur,kind)=>`<div class="row">${list.map(c=>`<button class="sw ${c?'':'none'}" data-${kind}="${c||''}" aria-pressed="${c===cur}" aria-label="${c||"asl holati yoki o'chirilgan"}" style="${c?`background:${c}`:''}"></button>`).join('')}</div>`;
   let h='';
   if(tab==='paint') h=sw(PAINTS,tune.color,'paint')+`<div class="row">${Object.entries(FINISH).map(([k,l])=>`<button class="chip" data-finish="${k}" aria-pressed="${tune.finish===k}">${l}</button>`).join('')}</div>`;
   if(tab==='paint2') h=sw(PAINTS2,tune.color2,'paint2')+`<p class="credit">Pastki panellar va ikkinchi rang</p>`;
@@ -1021,10 +1054,10 @@ function renderGarage(){
 $('#panel').addEventListener('click',async e=>{
   const el=e.target.closest('button'); if(!el||el.id==='goBtn'||el.classList.contains('arrow')) return; const ds=el.dataset;
   if(ds.tab){ tab=ds.tab; store.set('tab',tab); }
-  else if(ds.paint!==undefined) tune.color=ds.paint;
-  else if(ds.paint2!==undefined) tune.color2=ds.paint2;
+  else if(ds.paint!==undefined) tune.color=ds.paint||null;
+  else if(ds.paint2!==undefined) tune.color2=ds.paint2||null;
   else if(ds.finish) tune.finish=ds.finish;
-  else if(ds.rim!==undefined) tune.rim=ds.rim;
+  else if(ds.rim!==undefined) tune.rim=ds.rim||null;
   else if(ds.stage!==undefined) tune.engine=+ds.stage;
   else if(ds.tire) tune.tire=ds.tire;
   else if(ds.neon!==undefined) tune.neon=ds.neon||null;
