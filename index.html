@@ -579,8 +579,28 @@ async function buildCity(){
   for(let r=0;r<400&&!found;r+=6) for(let t=0;t<16&&!found;t++){ const x=Math.cos(t/16*6.283)*r, z=Math.sin(t/16*6.283)*r, i=cell(x,z);
     if(i>=0 && lane[i] && h1[i]<1.3 && h2[i]!==h2[i] && cnt(x-2,z-2,x+2,z+2)>=16){ let best=0; for(let q=0;q<32;q++){ const an=q/32*6.283; let run=0; while(run<300 && isRoad(x+Math.sin(an)*run,z+Math.cos(an)*run,1) && isRoad(x-Math.sin(an)*run,z-Math.cos(an)*run,1)) run+=2; if(run>best){ best=run; sh=an; } }
       if(best>120){ sx=x; sz=z; found=true; } } }
+  // straight, flat street sections for the parking levels
+  const spots=[];
+  for(let z=z0+30; z<z0+GH-30; z+=14) for(let x=x0+30; x<x0+GW-30; x+=14){ const i=cell(x,z);
+    if(i<0||!lane[i]||h1[i]>1.2||h2[i]===h2[i]) continue;
+    if(spots.some(q=>Math.hypot(q.x-x,q.z-z)<140)) continue;
+    const isLane=(px,pz)=>{ const k=cell(px,pz); return k>=0&&lane[k]===1&&h1[k]<1.2; };
+    let best=0, an=0; for(let q=0;q<32;q++){ const t=q/32*6.283; let run=0; while(run<90 && isLane(x+Math.sin(t)*run,z+Math.cos(t)*run) && isLane(x-Math.sin(t)*run,z-Math.cos(t)*run)) run+=2; if(run>best){ best=run; an=t; } }
+    if(best<56) continue;
+    const rx=Math.cos(an), rz=-Math.sin(an); let e1=0, e2=0; while(e1<20 && isLane(x+rx*(e1+1),z+rz*(e1+1))) e1++; while(e2<20 && isLane(x-rx*(e2+1),z-rz*(e2+1))) e2++;
+    if(e1+e2<11||e1+e2>19) continue;
+    let ok=true; for(const d of [-36,-18,18,36]){ let a1=0; while(a1<20 && isLane(x+Math.sin(an)*d+rx*(a1+1),z+Math.cos(an)*d+rz*(a1+1))) a1++; if(Math.abs(a1-e1)>2.5) ok=false; }
+    if(!ok) continue;
+    spots.push({x:x+rx*(e1-e2)/2, z:z+rz*(e1-e2)/2, an, hw:(e1+e2+1)/2, y:h1[i]}); }
+  const pushOut=(x,z,rad)=>{ const list=hash.get(Math.floor(x/HC)+','+Math.floor(z/HC)); if(!list) return null; let out=null;
+    for(const r of list){ if(x<r.x0-rad||x>r.x1+rad||z<r.z0-rad||z>r.z1+rad) continue;
+      const qx=clamp(x,r.x0,r.x1), qz=clamp(z,r.z0,r.z1); let dx=x-qx, dz=z-qz, d=Math.hypot(dx,dz), nx, nz, pen;
+      if(d<1e-6){ const o=[[x-r.x0,-1,0],[r.x1-x,1,0],[z-r.z0,0,-1],[r.z1-z,0,1]].sort((m,n)=>m[0]-n[0]); nx=o[0][1]; nz=o[0][2]; pen=o[0][0]+rad; }
+      else { if(d>=rad) continue; nx=dx/d; nz=dz/d; pen=rad-d; }
+      x+=nx*pen; z+=nz*pen; out={x,z,nx,nz}; }
+    return out; };
   const bx0=x0+3, bx1=x0+GW-3, bz0=z0+3, bz1=z0+GH-3;
-  return { group:g, spawn:[sx,sz,sh], bound:1e5, cones:()=>[], buildings:rects.length,
+  return { group:g, spawn:[sx,sz,sh], bound:1e5, cones:()=>[], buildings:rects.length, grid:{cell,h1,h2,lane,isRoad}, parkSpots:spots, pushOut, road:isRoad,
     height:sample, onRoad:(x,z)=>isRoad(x,z,curH),
     wall:(p)=>{
       if(p.x<bx0){ p.x=bx0; if(p.vx<0) p.vx*=-.3; } if(p.x>bx1){ p.x=bx1; if(p.vx>0) p.vx*=-.3; } if(p.z<bz0){ p.z=bz0; if(p.vz<0) p.vz*=-.3; } if(p.z>bz1){ p.z=bz1; if(p.vz>0) p.vz*=-.3; }
@@ -852,14 +872,14 @@ function layoutCones(){
     for(let i=0;i<10;i++) spots.push([22+(i%2)*3.2, 10+Math.floor(i/2)*6]);
   }
   while(cones.length<spots.length) cones.push({mesh:makeCone()});
-  cones.forEach((c,i)=>{ c.mesh.visible=i<spots.length; if(i>=spots.length){ c.x=c.z=1e5; return; } const [x,z]=spots[i]; Object.assign(c,{x,z,x0:x,z0:z,vx:0,vz:0,down:false,yaw:Math.random()*6,tip:0});
+  cones.forEach((c,i)=>{ c.mesh.visible=i<spots.length; if(i>=spots.length){ c.x=c.z=1e5; return; } const [x,z]=spots[i]; Object.assign(c,{x,z,x0:x,z0:z,y:(worlds[locKey]&&worlds[locKey].height)?worlds[locKey].height(x,z,1.5):0,vx:0,vz:0,down:false,yaw:Math.random()*6,tip:0});
     c.mesh.position.set(x,0,z); c.mesh.rotation.set(0,c.yaw,0); });
 }
 function updateCones(dt){
   for(const c of cones){
     if(c.vx||c.vz){ c.x+=c.vx*dt; c.z+=c.vz*dt; const f=Math.exp(-dt*(c.down?3:5)); c.vx*=f; c.vz*=f; if(Math.hypot(c.vx,c.vz)<.05){c.vx=c.vz=0;} }
     c.tip=lerp(c.tip,c.down?Math.PI/2:0,Math.min(1,dt*10));
-    c.mesh.position.set(c.x,c.down?.16:0,c.z); c.mesh.rotation.set(c.tip,c.yaw,0,'YXZ');
+    c.mesh.position.set(c.x,(c.down?.16:0)+(c.y||0)-curH,c.z); c.mesh.rotation.set(c.tip,c.yaw,0,'YXZ');
   }
 }
 
@@ -1142,7 +1162,7 @@ function updateCamera(dt){
 }
 
 /* ================= game modes: free drive, race, police chase, parking ================= */
-const MODES={ free:{label:'Erkin', sub:'Xohlagan xaritada'}, race:{label:'Poyga', sub:'3 raqib · 3 davra', loc:'circuit'}, police:{label:'Politsiya', sub:"Qochib qoling", loc:'runway'}, park:{label:'Parkovka', sub:'5 bosqich', loc:'runway'} };
+const MODES={ free:{label:'Erkin', sub:'Xohlagan xaritada'}, race:{label:'Poyga', sub:'3 raqib · 3 davra', loc:'circuit'}, police:{label:'Politsiya', sub:"Shaharda qoching", loc:'city'}, park:{label:'Parkovka', sub:'5 bosqich · shahar', loc:'city'} };
 let mode=store.get('mode','free'); if(!MODES[mode]) mode='free';
 const agents=[];            // other cars: {x,z,h,v,root,wheels,static,st}
 let hold=0;                 // seconds the player's controls stay locked (race countdown)
@@ -1163,8 +1183,8 @@ function cloneCar(color){
   return {root,wheels,mats:[...swap.values()]};
 }
 function addAgent(x,z,h,color,extra={}){
-  const c=cloneCar(color); const a=Object.assign({x,z,h,v:0,st:{i:0},steer:0},c,extra);
-  a.root.position.set(x,0,z); a.root.rotation.y=h; agents.push(a); return a;
+  const c=cloneCar(color), W=worlds[locKey]; const a=Object.assign({x,z,h,v:0,st:{i:0},steer:0,y:(W&&W.height)?W.height(x,z,1.5):0},c,extra);
+  a.root.position.set(x,a.y-curH,z); a.root.rotation.y=h; agents.push(a); return a;
 }
 function clearAgents(){ for(const a of agents){ scene.remove(a.root); for(const m of a.mats) m.dispose(); } agents.length=0; }
 function driveAgent(a,tx,tz,vmax,dt,acc=7){
@@ -1176,8 +1196,10 @@ function driveAgent(a,tx,tz,vmax,dt,acc=7){
   a.x+=Math.sin(a.h)*a.v*dt; a.z+=Math.cos(a.h)*a.v*dt;
 }
 function drawAgents(dt){
+  const W=worlds[locKey], H=W&&W.height;
   for(const a of agents){
-    a.root.position.set(a.x,0,a.z); a.root.rotation.y=a.h;
+    if(H && !a.static) a.y+=(H(a.x,a.z,a.y)-a.y)*Math.min(1,dt*10);
+    a.root.position.set(a.x,a.y-curH,a.z); a.root.rotation.y=a.h;
     if(a.static) continue;
     const sgn=car.flip?-1:1;
     for(const w of a.wheels){ w.spin.rotation.x+=a.v*dt/w.r*sgn; if(w.front) w.pivot.rotation.y=a.steer; }
@@ -1188,7 +1210,7 @@ function drawAgents(dt){
 function collideAgents(){
   const p=player, rad=car.W/2, fx=Math.sin(p.h), fz=Math.cos(p.h); let hit=0;
   for(const a of agents){
-    if(Math.abs(a.x-p.x)>8||Math.abs(a.z-p.z)>8) continue;
+    if(Math.abs(a.x-p.x)>8||Math.abs(a.z-p.z)>8||Math.abs(a.y-curH)>2) continue;
     const ax=Math.sin(a.h), az=Math.cos(a.h);
     for(const off of [-car.L*.3,car.L*.3]) for(const ao of [-car.L*.3,car.L*.3]){
       const cx=p.x+fx*off, cz=p.z+fz*off, ox=a.x+ax*ao, oz=a.z+az*ao;
@@ -1244,8 +1266,9 @@ function updateRace(dt){
 
 /* ---- police chase ---- */
 function addPolice(){
-  const p=player, ang=p.h+Math.PI+(Math.random()-.5)*1.2, d=70+Math.random()*30;
-  const a=addAgent(p.x+Math.sin(ang)*d, p.z+Math.cos(ang)*d, p.h, '#f4f5f7', {});
+  const p=player, W=worlds[locKey]; let x=p.x, z=p.z-80;
+  for(let t=0;t<40;t++){ const ang=p.h+Math.PI+(Math.random()-.5)*(1.2+t*.12), d=60+Math.random()*50; x=p.x+Math.sin(ang)*d; z=p.z+Math.cos(ang)*d; if(!W.road||W.road(x,z,1.5)) break; }
+  const a=addAgent(x, z, Math.atan2(p.x-x,p.z-z), '#f4f5f7', {});
   const mk=c=>new THREE.MeshStandardMaterial({color:0x111111,emissive:c,emissiveIntensity:0});
   a.bar=[mk(0xff1010),mk(0x1040ff)];
   a.bar.forEach((m,k)=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(.42,.1,.2),m); b.position.set((k?-.24:.24),car.H+.03,-.1); a.root.add(b); a.mats.push(m); });
@@ -1254,7 +1277,7 @@ function addPolice(){
 }
 function startPolice(){ M.t=0; M.caught=0; M.next=0; M.done=false; addPolice(); Snd.siren(true); toast('Politsiyadan qoching!'); }
 function updatePolice(dt){
-  const p=player; if(M.done) return;
+  const p=player, W=worlds[locKey]; if(M.done) return;
   M.t+=dt; M.next+=dt;
   if(M.next>18 && agents.length<5){ M.next=0; addPolice(); toast('Yana bir politsiya mashinasi!'); }
   const sp=Math.hypot(p.vx,p.vz); let close=false, nearest=1e9;
@@ -1263,10 +1286,13 @@ function updatePolice(dt){
     let tx=p.x+p.vx*lead, tz=p.z+p.vz*lead;
     if(k>0){ const s=(k%2?1:-1)*(3+k); tx+=Math.cos(p.h)*s; tz-=Math.sin(p.h)*s; }   // flank instead of queueing
     const d=Math.hypot(p.x-a.x,p.z-a.z); nearest=Math.min(nearest,d);
+    if(a.av>0){ a.av-=dt; tx=a.x+a.avx*30; tz=a.z+a.avz*30; }
     const vmax=d<6?sp:d<16?Math.max(sp+3,5):p.phys.vtop*(.86+k*.02);
     driveAgent(a,tx,tz,vmax,dt,8.5);
     for(const o of agents){ if(o!==a){ const dd=Math.hypot(o.x-a.x,o.z-a.z); if(dd<3.2 && dd>.01){ a.x+=(a.x-o.x)/dd*.06; a.z+=(a.z-o.z)/dd*.06; } } }
-    if(d<8.5) close=true;
+    if(W.pushOut && a.y<3){ const r=W.pushOut(a.x,a.z,car.W/2+.3); if(r){ a.x=r.x; a.z=r.z; a.v*=.93;
+        const s2=((p.x-a.x)*-r.nz+(p.z-a.z)*r.nx)>=0?1:-1; a.avx=-r.nz*s2; a.avz=r.nx*s2; a.av=.9; } }
+    if(d<8.5 && Math.abs(a.y-curH)<2.5) close=true;
   });
   M.caught = (close && sp<4.5) ? M.caught+dt : Math.max(0,M.caught-dt*1.5);
   const best=store.get('bestPolice',0);
@@ -1283,6 +1309,15 @@ const PARK=[   // apron of the airfield: x 135..345, z -105..105
   {name:'Orqa bilan tor joyga', start:[320,40,Math.PI], target:[320,-60,0], cars:[[316.7,-60,0],[323.3,-60,0]], cones:[[317.9,-52.5],[322.1,-52.5],[317.9,-49.5],[322.1,-49.5],[317.9,-46.5],[322.1,-46.5]]},
 ];
 let parkBox=null;
+function getPark(){
+  const W=worlds[locKey]; if(!W||!W.parkSpots||W.parkSpots.length<1) return PARK;
+  const S=W.parkSpots, L=car.L, defs=[["Yo'l chetiga to'xtash",0,45,[]],['Parallel parkovka (keng joy)',L+4,45,[]],['Parallel parkovka',L+2.6,45,[]],['Orqaga yurib joylash',L+3,-22,[]],['Tor joyga parallel',L+2,45,[1]]];
+  return defs.map(([name,gap,back,cn],i)=>{ const s=S[i%S.length], fx=Math.sin(s.an), fz=Math.cos(s.an), rx=Math.cos(s.an), rz=-Math.sin(s.an);
+    const lat=s.hw-car.W/2-.8, at=(d,l)=>[s.x+fx*d+rx*l, s.z+fz*d+rz*l];
+    const cars=gap?[[...at(gap,lat),s.an],[...at(-gap,lat),s.an]]:[];
+    const cones=cn.length?[-L,-L/2,0,L/2,L].map(d=>at(d,lat-car.W/2-2.9)):[];
+    return {name, start:[...at(-back,lat-3.6),s.an], target:[...at(0,lat),s.an], cars, cones, y:s.y}; });
+}
 function makeParkBox(){
   const g=new THREE.Group(), mat=new THREE.MeshBasicMaterial({color:0xffd21a,polygonOffset:true,polygonOffsetFactor:-6,polygonOffsetUnits:-12});
   const w=car.W+.9, l=car.L+1.0, t=.16;
@@ -1291,16 +1326,16 @@ function makeParkBox(){
   g.userData={w,l,mat,fill:fill.material}; scene.add(g); return g;
 }
 function startPark(){
-  M.lvl=Math.min(M.lvl||0,PARK.length-1); const L=PARK[M.lvl];
+  const LV=getPark(); M.lv=LV; M.lvl=Math.min(M.lvl||0,LV.length-1); const L=LV[M.lvl]; M.py=L.y||0;
   player.x=L.start[0]; player.z=L.start[1]; player.h=L.start[2]; player.camYaw=player.h;
   L.cars.forEach(([x,z,h],i)=>addAgent(x,z,h,AGENT_COLORS[(i+M.lvl*2)%AGENT_COLORS.length],{static:true}));
   coneOverride=L.cones; layoutCones();
-  if(parkBox) scene.remove(parkBox); parkBox=makeParkBox(); parkBox.position.set(L.target[0],0,L.target[1]); parkBox.rotation.y=L.target[2];
+  if(parkBox) scene.remove(parkBox); parkBox=makeParkBox(); parkBox.position.set(L.target[0],M.py-curH,L.target[1]); parkBox.rotation.y=L.target[2];
   M.t=0; M.in=0; M.pen=0; M.bumps=0; M.done=false; M.downs=0;
   toast((M.lvl+1)+'-bosqich: '+L.name);
 }
 function updatePark(dt){
-  const p=player, L=PARK[M.lvl]; if(M.done) return;
+  const p=player, PARKL=M.lv, L=PARKL[M.lvl]; parkBox.position.y=M.py-curH; if(M.done) return;
   M.t+=dt;
   const downs=cones.filter(c=>c.down).length; if(downs>M.downs){ M.pen+=3*(downs-M.downs); M.downs=downs; toast('Konus urildi: +3 soniya'); }
   if(M.bumps){ M.pen+=5*M.bumps; M.bumps=0; toast('Mashinaga tegdingiz: +5 soniya'); }
@@ -1314,9 +1349,9 @@ function updatePark(dt){
   const col=ok?0x39e06a:inside?0xff8a1a:0xffd21a; parkBox.userData.mat.color.setHex(col); parkBox.userData.fill.color.setHex(col);
   M.in = ok&&stopped ? M.in+dt : 0;
   const best=store.get('bestPark'+M.lvl,0);
-  setHud('PARKOVKA '+(M.lvl+1)+'/'+PARK.length, fmtT(M.t+M.pen), inside&&!ok?"Mashinani to'g'rilang":ok&&!stopped?"To'xtang":'Eng yaxshi: '+(best?fmtT(best):'—'));
+  setHud('PARKOVKA '+(M.lvl+1)+'/'+PARKL.length, fmtT(M.t+M.pen), inside&&!ok?"Mashinani to'g'rilang":ok&&!stopped?"To'xtang":'Eng yaxshi: '+(best?fmtT(best):'—'));
   if(M.in>.8){ M.done=true; const tt=M.t+M.pen; if(!best||tt<best) store.set('bestPark'+M.lvl,tt);
-    const last=M.lvl>=PARK.length-1; M.next=!last;
+    const last=M.lvl>=PARKL.length-1; M.next=!last;
     showResult(last?'Barcha bosqichlar tugadi!':'Joylandi!', 'Vaqt: '+fmtT(tt)+(M.pen?' (jarima +'+M.pen+' s)':''));
     $('#resNext').hidden=last; }
 }
@@ -1328,6 +1363,7 @@ function startMode(){
   if(mode==='race') startRace(); else if(mode==='police') startPolice(); else if(mode==='park') startPark();
   if(mode==='free') layoutCones();
   player.vx=player.vz=player.angVel=0;
+  camera.position.set(player.x-Math.sin(player.h)*8,2.4,player.z-Math.cos(player.h)*8); cine.set=false;
 }
 function updateMode(dt){
   if(hold>0) hold-=dt;

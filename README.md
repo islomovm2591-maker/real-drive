@@ -9,7 +9,7 @@ Brauzerda (telefon va kompyuterda) ishlaydigan realistik 3D mashina haydash o'yi
 - **Kichik joylar**: haqiqiy 360° fotosuratlar (HDRI) yerga proyeksiya qilingan: karyer, maydon va kechki shahar
 - **Tyuning**: asosiy rang va bo'yoq turi (metallik, yaltiroq, mat, sadaf), ikkinchi rang, disk rangi, tonirovka, podveska, dvigatel (Stage 1–3), shinalar, neon
 - **Haydash**: avtomat uzatmalar qutisi, qo'l tormozi bilan drift, drift ochkolari va rekord, shina izlari, uriladigan konuslar
-- **Rejimlar**: Erkin haydash, Poyga (3 raqib, 3 davra), Politsiyadan qochish (qancha uzoq qochsangiz, shuncha yaxshi), Parkovka (5 bosqich, vaqtga)
+- **Rejimlar**: Erkin haydash, Poyga (3 raqib, 3 davra), Politsiyadan qochish (shaharda, qancha uzoq qochsangiz, shuncha yaxshi), Parkovka (shahar ko'chalarida 5 bosqich, vaqtga)
 - **Kameralar**: orqadan, salondan, kapotdan va kino rejimi
 - Dvigatel, shina chiyillashi va signal ovozlari
 
