@@ -274,7 +274,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
     <button class="mbtn primary" id="mResume">Davom etish</button>
     <button class="mbtn" id="mReset">Qayta boshlash</button>
     <button class="mbtn" id="mGarage">Garajga qaytish</button>
-    <p class="credit">3D modellar mualliflari garajda ko'rsatilgan. Osmon panoramalari: Poly Haven (CC0).</p>
+    <p class="credit">3D modellar mualliflari garajda ko'rsatilgan. Shahar yo'llari: "City Infrastructure Base Map", PropShop™, Sketchfab (CC BY 4.0). Osmon panoramalari: Poly Haven (CC0).</p>
   </div>
 </div>
 
@@ -294,6 +294,7 @@ window.addEventListener('error', function(e){
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -336,6 +337,7 @@ const camera=new THREE.PerspectiveCamera(40,1,.2,3000);
 
 /* ================= locations (real HDRI photographs projected onto the ground) ================= */
 const LOCS={
+  city:{label:'Shahar', type:'open', file:'assets/quarry_01_1k.hdr', exp:1.0, spawn:[0,0,0], build:()=>buildCity(), size:"1,3 km · ko'priklar"},
   runway:{label:'Aerodrom', type:'open', file:'assets/blouberg_sunrise_2_1k.hdr', exp:1.0, spawn:[0,0,-900], build:()=>buildRunway(), size:'2 km'},
   circuit:{label:'Trassa', type:'open', file:'assets/quarry_01_1k.hdr', exp:1.0, spawn:[0,0,0], build:()=>buildCircuit(), size:'3 km'},
   quarry:{label:'Karyer', file:'assets/quarry_01_1k.hdr', h:11, R:150, exp:1.0, spawn:[0,0,-20]},
@@ -400,7 +402,8 @@ async function loadLocation(key){
   scene.fog=open?new THREE.Fog(hor,250,2600):null;
   if(open) ensureGround().visible=true; else if(openGround) openGround.visible=false;
   for(const k in worlds) worlds[k].group.visible=false;
-  if(open) ensureWorld(key).group.visible=true;
+  if(open) (await ensureWorld(key)).group.visible=true;
+  curH=0; curPitch=0;
   lap.last=-1; lap.on=false; lap.t=0;
   renderer.toneMappingExposure=L.exp;
   sunDir.copy(S.dir); if(sunDir.y<.15){ sunDir.y=.15; sunDir.normalize(); }
@@ -508,8 +511,107 @@ function buildCircuit(){
         p.x-=nx[k]*s*push; p.z-=nz[k]*s*push; const vn=(p.vx*nx[k]+p.vz*nz[k])*s; if(vn>0){ p.vx-=nx[k]*s*vn*1.3; p.vz-=nz[k]*s*vn*1.3; p.vx*=.9; p.vz*=.9; if(vn>3){ Snd.thump(vn/12); shake=Math.min(.4,vn/25);} } } },
     cones:()=>[] };
 }
+/* ================= city map: real road network (glTF) + generated buildings ================= */
+let curH=0, curPitch=0;
+function facadeMat(wall,win,frame,glassy){
+  const lit=[...Array(16)].map(()=>Math.random()<.5);
+  const t=canvasTex(256,256,(g,w,h)=>{ g.fillStyle=wall; g.fillRect(0,0,w,h); specks(g,w,h,2500,.1,2);
+    for(let r=0;r<4;r++) for(let c=0;c<4;c++){ const x=c*64,y=r*64; let wx=x+12,wy=y+14,ww=40,wh=36; if(glassy){ wx=x+3; wy=y+4; ww=58; wh=56; }
+      if(!glassy){ g.fillStyle=frame; g.fillRect(wx-3,wy-3,ww+6,wh+6); }
+      const gr=g.createLinearGradient(wx,wy,wx+ww,wy+wh); gr.addColorStop(0,win); gr.addColorStop(.5,lit[r*4+c]?'#7d8c99':'#55626e'); gr.addColorStop(1,win); g.fillStyle=gr; g.fillRect(wx,wy,ww,wh);
+      g.fillStyle='rgba(0,0,0,.35)'; g.fillRect(wx+ww/2-1,wy,2,wh); }
+    g.fillStyle='rgba(0,0,0,.25)'; g.fillRect(0,0,w,4); });
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  return new THREE.MeshStandardMaterial({map:t,roughness:glassy?.25:.85,metalness:glassy?.5:0});
+}
+async function buildCity(){
+  const url=await assetURL('assets/city_roads.glb','glTF'); const gltf=await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url); URL.revokeObjectURL(url);
+  const g=new THREE.Group(), src=gltf.scene; g.add(src); src.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(src), ctr=box.getCenter(new THREE.Vector3());
+  src.position.x-=ctr.x; src.position.z-=ctr.z; src.updateMatrixWorld(true);
+  const x0=box.min.x-ctr.x, z0=box.min.z-ctr.z, GW=Math.ceil(box.max.x-box.min.x)+1, GH=Math.ceil(box.max.z-box.min.z)+1;
+  // 1 m height grid with two layers (ground road + bridge deck)
+  const h1=new Float32Array(GW*GH).fill(NaN), h2=new Float32Array(GW*GH).fill(NaN);
+  const put=(i,y)=>{ const a=h1[i]; if(a!==a){ h1[i]=y; return; } if(Math.abs(y-a)<1.5){ if(y>a) h1[i]=y; return; }
+    if(y>a){ const b=h2[i]; h2[i]=(b!==b||y>b)?y:b; } else { const b=h2[i]; h2[i]=(b!==b||a>b)?a:b; h1[i]=y; } };
+  const lane=new Uint8Array(GW*GH);
+  const DRIVE=/Asphalt|Lane|Crossing|Pavement|Concrete/, a=new THREE.Vector3(), b=new THREE.Vector3(), c=new THREE.Vector3(), E=.3;
+  src.traverse(o=>{ if(!o.isMesh) return; o.receiveShadow=true;
+    if(!DRIVE.test(o.material.name||'')) return;
+    const pos=o.geometry.attributes.position, idx=o.geometry.index, M=o.matrixWorld, isLane=/Two_Lane/.test(o.material.name);
+    for(let t=0;t<idx.count;t+=3){
+      a.fromBufferAttribute(pos,idx.getX(t)).applyMatrix4(M); b.fromBufferAttribute(pos,idx.getX(t+1)).applyMatrix4(M); c.fromBufferAttribute(pos,idx.getX(t+2)).applyMatrix4(M);
+      const ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,vx=c.x-a.x,vy=c.y-a.y,vz=c.z-a.z, ny=uz*vx-ux*vz, nl=Math.hypot(uy*vz-uz*vy,ny,ux*vy-uy*vx);
+      if(nl<1e-9||Math.abs(ny)/nl<.6) continue;
+      const den=(b.z-c.z)*(a.x-c.x)+(c.x-b.x)*(a.z-c.z); if(Math.abs(den)<1e-9) continue;
+      const ix0=Math.max(0,Math.floor(Math.min(a.x,b.x,c.x)-x0)), ix1=Math.min(GW-1,Math.floor(Math.max(a.x,b.x,c.x)-x0));
+      const iz0=Math.max(0,Math.floor(Math.min(a.z,b.z,c.z)-z0)), iz1=Math.min(GH-1,Math.floor(Math.max(a.z,b.z,c.z)-z0));
+      for(let iz=iz0;iz<=iz1;iz++) for(let ix=ix0;ix<=ix1;ix++){ const px=x0+ix+.5, pz=z0+iz+.5;
+        const w0=((b.z-c.z)*(px-c.x)+(c.x-b.x)*(pz-c.z))/den, w1=((c.z-a.z)*(px-c.x)+(a.x-c.x)*(pz-c.z))/den, w2=1-w0-w1;
+        if(w0<-E||w1<-E||w2<-E) continue; put(iz*GW+ix, w0*a.y+w1*b.y+w2*c.y); if(isLane) lane[iz*GW+ix]=1; }
+    } });
+  const cell=(x,z)=>{ const ix=Math.floor(x-x0), iz=Math.floor(z-z0); return (ix<0||iz<0||ix>=GW||iz>=GH)?-1:iz*GW+ix; };
+  const sample=(x,z,y)=>{ const i=cell(x,z); if(i<0) return 0; const lo=h1[i]; if(lo!==lo||lo>y+1.6) return 0; const hi=h2[i];
+    return (hi===hi && hi<=y+1.6 && Math.abs(hi-y)<Math.abs(lo-y))?hi:lo; };
+  const isRoad=(x,z,y)=>{ const i=cell(x,z); if(i<0) return false; const lo=h1[i]; return lo===lo && lo<=y+1.6; };
+  // summed-area table of road cells -> fast "is this lot free / near a street" tests
+  const SW=GW+1, sat=new Int32Array(SW*(GH+1));
+  for(let iz=0;iz<GH;iz++){ let row=0; for(let ix=0;ix<GW;ix++){ row+=(h1[iz*GW+ix]===h1[iz*GW+ix])?1:0; sat[(iz+1)*SW+ix+1]=sat[iz*SW+ix+1]+row; } }
+  const cnt=(xa,za,xb,zb)=>{ xa=clamp(Math.floor(xa-x0),0,GW); xb=clamp(Math.ceil(xb-x0),0,GW); za=clamp(Math.floor(za-z0),0,GH); zb=clamp(Math.ceil(zb-z0),0,GH); return sat[zb*SW+xb]-sat[za*SW+xb]-sat[zb*SW+xa]+sat[za*SW+xa]; };
+  // buildings along the streets
+  let seed=20261116; const rnd=()=>{ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; };
+  const mats=[facadeMat('#b8aa93','#26303a','#e3dccd'),facadeMat('#8b4a38','#1f272f','#d9cfc0'),facadeMat('#8f949a','#2b3640','#c9ced3'),facadeMat('#26323d','#3d5466','#1b232b',true),facadeMat('#d8d6cf','#28323b','#ffffff')];
+  const geos=mats.map(()=>[]), rects=[], hash=new Map(), HC=64, T=12;
+  for(let cz=z0+18; cz<z0+GH-18; cz+=30) for(let cx=x0+18; cx<x0+GW-18; cx+=30){
+    const x=cx+(rnd()-.5)*4, z=cz+(rnd()-.5)*4, w=15+rnd()*10, d=15+rnd()*10;
+    if(cnt(x-w/2-5,z-d/2-5,x+w/2+5,z+d/2+5)>0 || cnt(x-34,z-34,x+34,z+34)<40) continue;
+    const dc=Math.hypot(x,z)/Math.hypot(GW,GH)*2, tall=rnd()<.22;
+    const h=Math.round((9+Math.pow(rnd(),1.7)*(tall?70:26)*(1.2-dc*.6))/3)*3, k=tall?3:Math.floor(rnd()*mats.length);
+    const geo=new THREE.BoxGeometry(w,h,d), uv=geo.attributes.uv;
+    for(let f=0;f<6;f++) for(let q=0;q<4;q++){ const i=f*4+q; if(f===2||f===3) uv.setXY(i,.02,.99); else uv.setXY(i,uv.getX(i)*(f<2?d:w)/T,uv.getY(i)*h/T); }
+    geo.translate(x,h/2-.2,z); geos[k].push(geo);
+    const r={x0:x-w/2,x1:x+w/2,z0:z-d/2,z1:z+d/2}; rects.push(r);
+    for(let hx=Math.floor(r.x0/HC); hx<=Math.floor(r.x1/HC); hx++) for(let hz=Math.floor(r.z0/HC); hz<=Math.floor(r.z1/HC); hz++){ const key=hx+','+hz; (hash.get(key)||hash.set(key,[]).get(key)).push(r); }
+  }
+  geos.forEach((arr,k)=>{ if(!arr.length) return; const m=new THREE.Mesh(mergeGeometries(arr),mats[k]); m.castShadow=true; m.receiveShadow=true; g.add(m); for(const q of arr) q.dispose(); });
+  // spawn on a flat street near the middle, facing along it
+  let sx=0, sz=0, sh=0, found=false;
+  for(let r=0;r<400&&!found;r+=6) for(let t=0;t<16&&!found;t++){ const x=Math.cos(t/16*6.283)*r, z=Math.sin(t/16*6.283)*r, i=cell(x,z);
+    if(i>=0 && lane[i] && h1[i]<1.3 && h2[i]!==h2[i] && cnt(x-2,z-2,x+2,z+2)>=16){ let best=0; for(let q=0;q<32;q++){ const an=q/32*6.283; let run=0; while(run<300 && isRoad(x+Math.sin(an)*run,z+Math.cos(an)*run,1) && isRoad(x-Math.sin(an)*run,z-Math.cos(an)*run,1)) run+=2; if(run>best){ best=run; sh=an; } }
+      if(best>120){ sx=x; sz=z; found=true; } } }
+  const bx0=x0+3, bx1=x0+GW-3, bz0=z0+3, bz1=z0+GH-3;
+  return { group:g, spawn:[sx,sz,sh], bound:1e5, cones:()=>[], buildings:rects.length,
+    height:sample, onRoad:(x,z)=>isRoad(x,z,curH),
+    wall:(p)=>{
+      if(p.x<bx0){ p.x=bx0; if(p.vx<0) p.vx*=-.3; } if(p.x>bx1){ p.x=bx1; if(p.vx>0) p.vx*=-.3; } if(p.z<bz0){ p.z=bz0; if(p.vz<0) p.vz*=-.3; } if(p.z>bz1){ p.z=bz1; if(p.vz>0) p.vz*=-.3; }
+      if(curH>3) return;                                   // on a bridge, above the roofs' base
+      const list=hash.get(Math.floor(p.x/HC)+','+Math.floor(p.z/HC)); if(!list) return;
+      const rad=car.W/2, fx=Math.sin(p.h), fz=Math.cos(p.h); let hit=0;
+      for(const off of [-car.L*.33,0,car.L*.33]){ let cx=p.x+fx*off, cz=p.z+fz*off;
+        for(const r of list){ if(cx<r.x0-rad||cx>r.x1+rad||cz<r.z0-rad||cz>r.z1+rad) continue;
+          const qx=clamp(cx,r.x0,r.x1), qz=clamp(cz,r.z0,r.z1); let dx=cx-qx, dz=cz-qz, d=Math.hypot(dx,dz), nx, nz, pen;
+          if(d<1e-6){ const o=[[cx-r.x0,-1,0],[r.x1-cx,1,0],[cz-r.z0,0,-1],[r.z1-cz,0,1]].sort((m,n)=>m[0]-n[0]); nx=o[0][1]; nz=o[0][2]; pen=o[0][0]+rad; }
+          else { if(d>=rad) continue; nx=dx/d; nz=dz/d; pen=rad-d; }
+          p.x+=nx*pen; p.z+=nz*pen; cx+=nx*pen; cz+=nz*pen;
+          const vn=p.vx*nx+p.vz*nz; if(vn<0){ p.vx-=nx*vn*1.25; p.vz-=nz*vn*1.25; p.vx*=.82; p.vz*=.82; p.angVel*=.5; hit=Math.max(hit,-vn); } } }
+      if(hit>2){ Snd.thump(hit/14); shake=Math.min(.5,hit/25); } } };
+}
+// roads with height: the world is shifted down under the car instead of lifting the car and the cameras
+function applyHeight(dt){
+  const W=worlds[locKey], p=state==='drive'?player:{x:car.root.position.x,z:car.root.position.z,h:car.root.rotation.y};
+  if(W && W.height && W.group.visible){
+    const k=Math.min(1,dt*10), fx=Math.sin(p.h), fz=Math.cos(p.h);
+    curH+=(W.height(p.x,p.z,curH)-curH)*k;
+    const f=W.height(p.x+fx*1.4,p.z+fz*1.4,curH+.4), b=W.height(p.x-fx*1.4,p.z-fz*1.4,curH+.4);
+    curPitch+=(clamp(Math.atan2(f-b,2.8),-.22,.22)-curPitch)*Math.min(1,dt*8);
+    W.group.position.y=-curH;
+  } else { curH=0; curPitch=0; }
+  if(openGround) openGround.position.y=-.1-curH;
+  skid.position.y=-curH;
+  car.root.rotation.order='YXZ'; car.root.rotation.x=-curPitch;
+}
 const worlds={};
-function ensureWorld(key){ const L=LOCS[key]; if(!worlds[key]){ worlds[key]=L.build(); scene.add(worlds[key].group); const s=worlds[key].spawn; L.spawn=[s[0],0,s[1]]; L.spawnH=s[2]||0; } return worlds[key]; }
+async function ensureWorld(key){ const L=LOCS[key]; if(!worlds[key]){ worlds[key]=await L.build(); scene.add(worlds[key].group); const s=worlds[key].spawn; L.spawn=[s[0],0,s[1]]; L.spawnH=s[2]||0; } return worlds[key]; }
 function horizonColor(tex){ const {data,width,height}=tex.image, H=THREE.DataUtils.fromHalfFloat; const y=Math.floor(height*.5)-2; let r=0,g=0,b=0;
   for(let x=0;x<width;x++){ const k=(y*width+x)*4; r+=H(data[k]); g+=H(data[k+1]); b+=H(data[k+2]); } const c=new THREE.Color(r/width,g/width,b/width); const m=Math.max(c.r,c.g,c.b); if(m>1.2) c.multiplyScalar(1.2/m); return c; }
 
@@ -771,7 +873,7 @@ const _m=new THREE.Matrix4(), _q=new THREE.Quaternion(), _s=new THREE.Vector3(),
 function addSkid(k,x,z){
   const L=skidLast[k]; if(!L){ skidLast[k]={x,z}; return; }
   const dx=x-L.x, dz=z-L.z, d=Math.hypot(dx,dz); if(d<.25) return;
-  _q.setFromAxisAngle(_up,Math.atan2(dx,dz)); _s.set(.24,1,d+.02); _p.set((x+L.x)/2,.006+skidI*1e-6,(z+L.z)/2);
+  _q.setFromAxisAngle(_up,Math.atan2(dx,dz)); _s.set(.24,1,d+.02); _p.set((x+L.x)/2,curH+.006+skidI*1e-6,(z+L.z)/2);
   _m.compose(_p,_q,_s); skid.setMatrixAt(skidI,_m); skidI=(skidI+1)%SKID_N; skid.count=Math.min(SKID_N,skid.count+1);
   skid.instanceMatrix.needsUpdate=true; skidLast[k]={x,z};
 }
@@ -877,7 +979,7 @@ function resetCar(){
   const L=LOCS[locKey];
   player.x=L.spawn[0]; player.z=L.spawn[2]; player.h=L.spawnH||0;
   player.vx=player.vz=player.angVel=0; player.reverse=false; player.gear=0; player.camYaw=player.h; cine.set=false;
-  lap.last=-1; lap.on=false; lap.t=0;
+  lap.last=-1; lap.on=false; lap.t=0; curH=1;
   layoutCones(); clearSkids(); drift.score=0; drift.active=false;
 }
 function collide(){
@@ -967,7 +1069,7 @@ function updateDrive(dt){
   updateLap(dt); updateMode(dt);
   updateCones(dt);
   // visuals
-  car.root.position.set(p.x,0,p.z); car.root.rotation.y=p.h;
+  car.root.position.set(p.x,0,p.z); car.root.rotation.y=p.h; applyHeight(dt);
   const accL=(p.vL-p.lastVL)/Math.max(dt,1e-3); p.lastVL=p.vL;
   const latA=p.angVel*p.vL;
   p.roll=lerp(p.roll,clamp(latA*.005,-.06,.06),Math.min(1,dt*5));
@@ -1302,7 +1404,7 @@ $('#c').addEventListener('pointerdown',e=>{ if(state!=='garage') return; drag={x
 addEventListener('pointermove',e=>{ if(drag) garageYaw=drag.yaw-(e.clientX-drag.x)*.008; });
 addEventListener('pointerup',()=>{ if(drag){ drag=null; setTimeout(()=>{ if(!drag) garageAuto=true; },2500); } });
 function placeCarGarage(){
-  const L=LOCS[locKey]; car.root.position.set(L.spawn[0],0,L.spawn[2]); car.root.rotation.y=L.spawnH||0; car.chassis.rotation.set(0,0,0);
+  const L=LOCS[locKey]; car.root.position.set(L.spawn[0],0,L.spawn[2]); car.root.rotation.y=L.spawnH||0; car.chassis.rotation.set(0,0,0); curH=1; applyHeight(1); applyHeight(1);
   sun.position.set(L.spawn[0]+sunDir.x*25,sunDir.y*25,L.spawn[2]+sunDir.z*25); sun.target.position.set(L.spawn[0],0,L.spawn[2]);
   shadowPlane.position.set(L.spawn[0],.004,L.spawn[2]);
 }
