@@ -176,6 +176,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
 #lap span{font-size:12px;color:var(--accent);font-weight:700}
 #lap>b{font-size:22px}
 #lap small{display:block;font-size:12px;color:var(--muted)}
+#fps{font-family:var(--f-display);font-size:13px;letter-spacing:.06em;color:var(--text);background:rgba(10,12,15,.55);border:1px solid var(--line);border-radius:10px;padding:6px 10px;white-space:nowrap;font-variant-numeric:tabular-nums}
 #best{font-family:var(--f-display);font-size:13px;letter-spacing:.06em;color:var(--muted);background:rgba(10,12,15,.55);border:1px solid var(--line);border-radius:10px;padding:6px 10px;white-space:nowrap}
 #best b{color:var(--text);font-weight:700}
 </style>
@@ -212,6 +213,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
       <button class="hb" id="bLights" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 5c4 0 7 3 7 7s-3 7-7 7c-2 0-3-3-3-7s1-7 3-7z"/><path d="M3 8h6M3 12h6M3 16h6"/></svg>Chiroq</button>
       <button class="hb" id="bHorn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10v4h3l6 4V6L7 10z"/><path d="M16 9c1 1 1 5 0 6M19 7c2 2 2 8 0 10"/></svg>Signal</button>
     </div>
+    <div id="fps" hidden></div>
     <div id="best">Eng yaxshi drift: <b id="bestV">0</b></div>
   </div>
   <div id="drift"><span>DRIFT</span><b id="driftV">0</b></div>
@@ -269,6 +271,8 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
     <div class="row" id="locRow"></div>
     <div class="eyebrow">Grafika</div>
     <div class="row" id="qualRow"></div>
+    <div class="eyebrow">Kadr tezligi (FPS)</div>
+    <div class="row" id="fpsRow"></div>
     <div class="eyebrow">Ovoz</div>
     <div class="row" id="soundRow"></div>
     <button class="mbtn primary" id="mResume">Davom etish</button>
@@ -1561,6 +1565,7 @@ function togglePause(force){
 function renderPause(){
   $('#locRow').innerHTML=Object.entries(LOCS).map(([k,v])=>`<button class="chip" data-ploc="${k}" aria-pressed="${k===locKey}">${v.label}</button>`).join('');
   $('#qualRow').innerHTML=[['min','Eng yengil'],['low','Tejamkor'],['high','Yuqori']].map(([k,l])=>`<button class="chip" data-q="${k}" aria-pressed="${k===quality}">${l}</button>`).join('');
+  $('#fpsRow').innerHTML=`<button class="chip" data-fps="1" aria-pressed="${showFps}">Ko'rsatish</button><button class="chip" data-fps="0" aria-pressed="${!showFps}">Yashirish</button>`;
   $('#soundRow').innerHTML=`<button class="chip" data-snd="1" aria-pressed="${!Snd.muted}">Yoqilgan</button><button class="chip" data-snd="0" aria-pressed="${Snd.muted}">O'chirilgan</button>`;
 }
 $('#pause').addEventListener('click',async e=>{
@@ -1568,6 +1573,7 @@ $('#pause').addEventListener('click',async e=>{
   if(el.dataset.ploc && mode!=='free'){ toast("Bu rejimda xarita o'zgarmaydi"); return; }
   if(el.dataset.ploc){ await switchLoc(el.dataset.ploc); setLights(!!LOCS[locKey].night,true); renderPause(); }
   if(el.dataset.q){ setQuality(el.dataset.q); renderPause(); }
+  if(el.dataset.fps){ showFps=el.dataset.fps==='1'; store.set('showFps',showFps); $('#fps').hidden=!showFps; renderPause(); }
   if(el.dataset.snd){ Snd.setMuted(el.dataset.snd==='0'); renderPause(); }
 });
 $('#mResume').addEventListener('click',()=>togglePause(false));
@@ -1617,11 +1623,14 @@ addEventListener('resize',resize);
 let last=performance.now();
 // adaptive resolution: if frames get slow, render fewer pixels (and back up when there is headroom)
 const perf={t:0,n:0};
+let showFps=store.get('showFps',false);
 function adaptRes(raw){
   if(state==='loading'||paused) return;
+  if($('#fps').hidden===showFps) $('#fps').hidden=!showFps;
   perf.t+=raw; perf.n++;
   if(perf.t<1.5) return;
   const fps=perf.n/perf.t; perf.t=0; perf.n=0;
+  if(showFps) setText('fps',Math.round(fps)+' FPS'+(resScale<1?' · '+Math.round(resScale*100)+'%':''));
   const old=resScale;
   if(fps<42 && resScale>.55) resScale=Math.max(.55,resScale-.12);
   else if(fps>57 && resScale<1) resScale=Math.min(1,resScale+.06);
