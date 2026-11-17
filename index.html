@@ -539,7 +539,7 @@ async function buildCity(){
   const h1=new Float32Array(GW*GH).fill(NaN), h2=new Float32Array(GW*GH).fill(NaN);
   const put=(i,y)=>{ const a=h1[i]; if(a!==a){ h1[i]=y; return; } if(Math.abs(y-a)<1.5){ if(y>a) h1[i]=y; return; }
     if(y>a){ const b=h2[i]; h2[i]=(b!==b||y>b)?y:b; } else { const b=h2[i]; h2[i]=(b!==b||a>b)?a:b; h1[i]=y; } };
-  const lane=new Uint8Array(GW*GH);
+  const lane=new Uint8Array(GW*GH), pave=new Uint8Array(GW*GH);
   const DRIVE=/Asphalt|Lane|Crossing|Pavement|Concrete/, a=new THREE.Vector3(), b=new THREE.Vector3(), c=new THREE.Vector3(), E=.3;
   // walls: every steep face of the model (railings, bridge pillars, retaining walls) stored per 1 m cell
   // as up to two height spans, so a railing on a bridge does not block the street below it
@@ -559,7 +559,7 @@ async function buildCity(){
         const ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,vx=c.x-a.x,vy=c.y-a.y,vz=c.z-a.z, ny=uz*vx-ux*vz, nl=Math.hypot(uy*vz-uz*vy,ny,ux*vy-uy*vx);
         if(nl>1e-9 && Math.abs(ny)/nl<.5) wallTri(a,b,c); } }
     if(!DRIVE.test(mname)) return;
-    const pos=o.geometry.attributes.position, idx=o.geometry.index, M=o.matrixWorld, isLane=/Two_Lane/.test(o.material.name);
+    const pos=o.geometry.attributes.position, idx=o.geometry.index, M=o.matrixWorld, isLane=/Two_Lane/.test(o.material.name), isPave=/Pavement/.test(o.material.name);
     for(let t=0;t<idx.count;t+=3){
       a.fromBufferAttribute(pos,idx.getX(t)).applyMatrix4(M); b.fromBufferAttribute(pos,idx.getX(t+1)).applyMatrix4(M); c.fromBufferAttribute(pos,idx.getX(t+2)).applyMatrix4(M);
       const ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,vx=c.x-a.x,vy=c.y-a.y,vz=c.z-a.z, ny=uz*vx-ux*vz, nl=Math.hypot(uy*vz-uz*vy,ny,ux*vy-uy*vx);
@@ -569,7 +569,7 @@ async function buildCity(){
       const iz0=Math.max(0,Math.floor(Math.min(a.z,b.z,c.z)-z0)), iz1=Math.min(GH-1,Math.floor(Math.max(a.z,b.z,c.z)-z0));
       for(let iz=iz0;iz<=iz1;iz++) for(let ix=ix0;ix<=ix1;ix++){ const px=x0+ix+.5, pz=z0+iz+.5;
         const w0=((b.z-c.z)*(px-c.x)+(c.x-b.x)*(pz-c.z))/den, w1=((c.z-a.z)*(px-c.x)+(a.x-c.x)*(pz-c.z))/den, w2=1-w0-w1;
-        if(w0<-E||w1<-E||w2<-E) continue; put(iz*GW+ix, w0*a.y+w1*b.y+w2*c.y); if(isLane) lane[iz*GW+ix]=1; }
+        if(w0<-E||w1<-E||w2<-E) continue; put(iz*GW+ix, w0*a.y+w1*b.y+w2*c.y); if(isLane) lane[iz*GW+ix]=1; else if(isPave) pave[iz*GW+ix]=1; }
     } });
   const cell=(x,z)=>{ const ix=Math.floor(x-x0), iz=Math.floor(z-z0); return (ix<0||iz<0||ix>=GW||iz>=GH)?-1:iz*GW+ix; };
   let inLinkF=()=>null, linkHF=()=>0, zoneRoadF=()=>false;
@@ -676,7 +676,7 @@ async function buildCity(){
     if(l1===l1 && l1<y+1.3 && wh1[i]>y+.5) return true; const l2=wl2[i]; return l2===l2 && l2<y+1.3 && wh2[i]>y+.5; };
   inLinkF=inLink; linkHF=linkH; zoneRoadF=zoneRoad;
   return { group:g, spawn:[sx,sz,sh], bound:1e5, buildings:rects.length, zones, links, blocked, wspans:{wl1,wh1,wl2,wh2,cell},
-    cones:()=>air?air.cones().map(([x,z])=>[x+air.ox,z+air.oz]):[], grid:{cell,h1,h2,lane,isRoad}, parkSpots:spots, pushOut, road:isRoad,
+    cones:()=>air?air.cones().map(([x,z])=>[x+air.ox,z+air.oz]):[], grid:{cell,h1,h2,lane,pave,isRoad,x0,z0,GW,GH}, parkSpots:spots, pushOut, road:isRoad,
     height:sample, onRoad:(x,z)=>isRoad(x,z,curH),
     wall:(p)=>{
       if(p.x<bx0){ p.x=bx0; if(p.vx<0) p.vx*=-.3; } if(p.x>bx1){ p.x=bx1; if(p.vx>0) p.vx*=-.3; } if(p.z<bz0){ p.z=bz0; if(p.vz<0) p.vz*=-.3; } if(p.z>bz1){ p.z=bz1; if(p.vz>0) p.vz*=-.3; }
@@ -1572,18 +1572,170 @@ function updatePark(dt){
 }
 
 function startMode(){
-  clearAgents(); hold=0; modeOver=false; coneOverride=null; $('#result').hidden=true; $('#resNext').hidden=true; Snd.siren(false);
+  stopLife(); clearAgents(); hold=0; modeOver=false; coneOverride=null; $('#result').hidden=true; $('#resNext').hidden=true; Snd.siren(false);
   if(parkBox){ scene.remove(parkBox); parkBox=null; }
   const lvl=M.lvl; for(const k in M) delete M[k]; M.lvl=lvl||0;
   if(mode==='race') startRace(); else if(mode==='police') startPolice(); else if(mode==='park') startPark();
-  if(mode==='free') layoutCones();
+  if(mode==='free'){ layoutCones(); startLife(); }
   player.vx=player.vz=player.angVel=0;
   camera.position.set(player.x-Math.sin(player.h)*8,2.4,player.z-Math.cos(player.h)*8); cine.set=false;
 }
 function updateMode(dt){
   if(hold>0) hold-=dt;
   if(mode==='race') updateRace(dt); else if(mode==='police') updatePolice(dt); else if(mode==='park') updatePark(dt);
+  updateLife(dt);
   drawAgents(dt);
+}
+
+/* ================= city life: traffic cars and pedestrians (free drive in the city) ================= */
+const LIFE={on:false, cars:[], peds:[], t:0};
+const TRAFFIC_KEYS=['dodge','f40','concept','merc','porsche'];
+const TRAFFIC_COLORS=['#e9ebee','#0f1012','#7a7f86','#1d4fd6','#a80000','#23324a','#c0c4c8','#0e5e4f','#f2b705'];
+function cloneFrom(SRC,color,paintKeepMap){
+  const root=SRC.root.clone(true), wheels=[], kill=[], swap=new Map();
+  root.traverse(o=>{
+    if(o.isLight||o.userData.neon) kill.push(o);
+    if(o.userData.wheelFront!==undefined) wheels.push({pivot:o, spin:o.children[0], front:o.userData.wheelFront, r:o.userData.r||.34});
+    if(color && o.isMesh && SRC.paints.includes(o.material)){ let m=swap.get(o.material); if(!m){ m=o.material.clone(); if(!paintKeepMap) m.map=null; m.color.set(color); swap.set(o.material,m); } o.material=m; }
+  });
+  for(const o of kill) o.removeFromParent();
+  root.rotation.set(0,0,0); scene.add(root);
+  return {root,wheels,mats:[...swap.values()]};
+}
+const lifeRand=a=>a[Math.floor(Math.random()*a.length)];
+function lifeGrid(){ const W=worlds[locKey]; if(!(W&&W.grid&&W.grid.pave)) return null;
+  // footpath = road surface beside the driving lanes (pavements and kerb strips)
+  const G=W.grid; if(!G.walk){ G.walk=new Uint8Array(G.h1.length); for(let i=0;i<G.h1.length;i++){ const h=G.h1[i]; if(h===h && h<1.3 && !G.lane[i]) G.walk[i]=1; } }
+  return W; }
+// random cell of a mask at 60..180 m from the player, preferably behind the camera
+const lifeLists=new WeakMap();
+function lifeSpot(W,mask,rMin,rMax){
+  const G=W.grid, p=player; let L=lifeLists.get(mask);
+  if(!L){ L=[]; for(let i=0;i<mask.length;i++) if(mask[i] && G.h1[i]<1.3 && G.h2[i]!==G.h2[i]) L.push(i); lifeLists.set(mask,L); }
+  if(!L.length) return null;
+  const fx=Math.sin(p.h), fz=Math.cos(p.h); let fallback=null;
+  for(let t=0;t<400;t++){ const i=L[Math.floor(Math.random()*L.length)], x=G.x0+(i%G.GW)+.5, z=G.z0+Math.floor(i/G.GW)+.5, d=Math.hypot(x-p.x,z-p.z);
+    if(d<rMin||d>rMax) continue; if((x-p.x)*fx+(z-p.z)*fz<0) return {x,z}; if(!fallback) fallback={x,z}; }
+  return fallback;
+}
+// how far one can go along heading `an` staying on cells of `mask`
+function lifeRun(W,mask,x,z,an,max){ const G=W.grid, sx=Math.sin(an), sz=Math.cos(an); let d=1; for(;d<max;d++){ const i=G.cell(x+sx*d,z+sz*d); if(i<0||!mask[i]) break; } return d; }
+function bestHeading(W,mask,x,z,h,span,max,bias){
+  let bh=h, bd=-1e9;
+  for(let k=-span;k<=span;k++){ const an=h+k*.12, d=lifeRun(W,mask,x,z,an,max)-Math.abs(k)*(bias||.5); if(d>bd){ bd=d; bh=an; } }
+  return {h:bh, d:bd};
+}
+
+/* ---- traffic ---- */
+async function spawnTraffic(){
+  const W=lifeGrid(); if(!W) return;
+  const want=quality==='min'?4:7;
+  while(LIFE.on && LIFE.cars.length<want){
+    const s=lifeSpot(W,W.grid.lane,60,200); if(!s) return;
+    const key=lifeRand(TRAFFIC_KEYS), SRC=await ensureLod(key); if(!LIFE.on) return; if(!SRC) continue;
+    const c=cloneFrom(SRC,lifeRand(TRAFFIC_COLORS),!!CARS[key].paintKeepMap);
+    const h=bestHeading(W,W.grid.lane,s.x,s.z,Math.random()*6.28,26,40,0).h;
+    const a=Object.assign({x:s.x,z:s.z,h,v:0,steer:0,y:W.height(s.x,s.z,1.5),traffic:true,stuck:0,cruise:8+Math.random()*5,turn:0,plan:0},c);
+    a.root.position.set(a.x,a.y-curH,a.z); a.root.rotation.y=h; agents.push(a); LIFE.cars.push(a);
+  }
+}
+function removeTraffic(a){ scene.remove(a.root); for(const m of a.mats) m.dispose(); const i=agents.indexOf(a); if(i>=0) agents.splice(i,1); LIFE.cars.splice(LIFE.cars.indexOf(a),1); }
+function updateTraffic(dt){
+  const W=lifeGrid(); if(!W) return; const G=W.grid, p=player, lane=G.lane;
+  for(const a of [...LIFE.cars]){
+    const dp=Math.hypot(a.x-p.x,a.z-p.z);
+    if(dp>260 || a.stuck>6){ removeTraffic(a); continue; }
+    a.plan-=dt;
+    if(a.plan<=0){ a.plan=.25;
+      // follow the street, keeping to the right half of it
+      const b=bestHeading(W,lane,a.x,a.z,a.h+a.turn,8,45,.6);
+      const rx=Math.cos(b.h), rz=-Math.sin(b.h); let er=0, el=0;
+      while(er<12 && (()=>{ const i=G.cell(a.x+rx*(er+1),a.z+rz*(er+1)); return i>=0&&lane[i]; })()) er++;
+      while(el<12 && (()=>{ const i=G.cell(a.x-rx*(el+1),a.z-rz*(el+1)); return i>=0&&lane[i]; })()) el++;
+      const off=er-Math.min(3.2,(er+el)/4);           // >0: too far left of the right lane
+      a.th=b.h+clamp(off*.06,-.35,.35); a.room=b.d;
+      if(Math.random()<.04) a.turn=(Math.random()-.5)*1.6; else a.turn*=.6;     // occasional turns at junctions
+    }
+    // brake for the player and for other cars ahead
+    const fx=Math.sin(a.h), fz=Math.cos(a.h); let vmax=Math.min(a.cruise, 2+a.room*.45);
+    const ahead=(ox,oz)=>{ const dx=ox-a.x, dz=oz-a.z, f=dx*fx+dz*fz, l=Math.abs(dx*fz-dz*fx); if(f>0 && f<16 && l<2.6) vmax=Math.min(vmax,Math.max(0,(f-6)*.8)); };
+    ahead(p.x,p.z); for(const o of LIFE.cars) if(o!==a) ahead(o.x,o.z); for(const q of LIFE.peds) if(!q.down) ahead(q.x,q.z);
+    const diff=wrapA((a.th||a.h)-a.h), rate=Math.min(1.4,.2+a.v/6);
+    a.h+=clamp(diff,-rate*dt,rate*dt); a.steer=lerp(a.steer,clamp(diff*1.6,-.5,.5),Math.min(1,dt*8));
+    a.v+=clamp(vmax-a.v,-9*dt,3*dt); if(a.v<0) a.v=0;
+    a.x+=fx*a.v*dt; a.z+=fz*a.v*dt;
+    if(W.pushOut && a.y<3){ const r=W.pushOut(a.x,a.z,1.2); if(r){ a.x=r.x; a.z=r.z; a.v*=.5; a.h+=.6; } }
+    a.stuck = a.v<.4 && dp>25 ? a.stuck+dt : 0;
+  }
+}
+
+/* ---- pedestrians: instanced low-poly people (6 draw calls for everybody) ---- */
+const PED_MAX=40;
+const pedParts=(()=>{
+  const mk=(geo,mat)=>{ const m=new THREE.InstancedMesh(geo,mat,PED_MAX); m.count=0; m.frustumCulled=false; m.castShadow=true; scene.add(m); return m; };
+  const cloth=new THREE.MeshLambertMaterial({color:0xffffff}), skin=new THREE.MeshLambertMaterial({color:0xffffff}), pants=new THREE.MeshLambertMaterial({color:0xffffff});
+  return { torso:mk(new THREE.BoxGeometry(.42,.6,.24).translate(0,.3,0),cloth), head:mk(new THREE.SphereGeometry(.13,10,8),skin),
+    legL:mk(new THREE.BoxGeometry(.15,.82,.16).translate(0,-.41,0),pants), legR:mk(new THREE.BoxGeometry(.15,.82,.16).translate(0,-.41,0),pants),
+    armL:mk(new THREE.BoxGeometry(.11,.6,.12).translate(0,-.3,0),cloth), armR:mk(new THREE.BoxGeometry(.11,.6,.12).translate(0,-.3,0),cloth) };
+})();
+const SHIRTS=['#c4161c','#1d4fd6','#f2b705','#2f8f4e','#e9ebee','#3a3d42','#7c4dff','#ff6a13','#0e5e4f','#a0522d'];
+const PANTS=['#23324a','#2b2b2b','#5c4a3a','#3d4f6b','#6b6b6b'];
+const SKINS=['#f1c9a5','#d9a37a','#b5794f','#8a5a3b','#e8b896'];
+function spawnPeds(){
+  const W=lifeGrid(); if(!W) return; const want=quality==='min'?16:28;
+  while(LIFE.peds.length<want){
+    const s=lifeSpot(W,W.grid.walk,25,140); if(!s) return;
+    const q={x:s.x,z:s.z,h:Math.random()*6.28,v:1+Math.random()*.6,ph:Math.random()*6,down:0,dvx:0,dvz:0,plan:0,
+      shirt:new THREE.Color(lifeRand(SHIRTS)), pants:new THREE.Color(lifeRand(PANTS)), skin:new THREE.Color(lifeRand(SKINS)), scale:.92+Math.random()*.16};
+    q.h=bestHeading(W,W.grid.walk,q.x,q.z,q.h,26,20,0).h; LIFE.peds.push(q);
+  }
+}
+const _pm=new THREE.Matrix4(), _pl=new THREE.Matrix4(), _pq=new THREE.Quaternion(), _pe=new THREE.Euler(), _pv=new THREE.Vector3(), _ps=new THREE.Vector3();
+function updatePeds(dt){
+  const W=lifeGrid(); if(!W) return; const G=W.grid, p=player, sp=Math.hypot(p.vx,p.vz);
+  let n=0; const P=pedParts;
+  for(const q of [...LIFE.peds]){
+    const dp=Math.hypot(q.x-p.x,q.z-p.z);
+    if(dp>170 || q.down>6){ LIFE.peds.splice(LIFE.peds.indexOf(q),1); continue; }
+    if(q.down){ q.down+=dt; q.x+=q.dvx*dt; q.z+=q.dvz*dt; const f=Math.exp(-dt*3); q.dvx*=f; q.dvz*=f; }
+    else {
+      q.plan-=dt;
+      if(q.plan<=0){ q.plan=.4+Math.random()*.4; const b=bestHeading(W,G.walk,q.x,q.z,q.h,6,8,.4); q.th=b.d<2?q.h+Math.PI:b.h; }
+      // step aside when a car comes straight at them
+      if(dp<9 && sp>3){ const dx=q.x-p.x, dz=q.z-p.z, fx=Math.sin(p.h), fz=Math.cos(p.h), f=dx*fx+dz*fz, l=dx*fz-dz*fx; if(f>0 && Math.abs(l)<2.2){ q.th=p.h+(l>0?-Math.PI/2:Math.PI/2); q.run=1.5; } }
+      const diff=wrapA(q.th-q.h); q.h+=clamp(diff,-4*dt,4*dt);
+      const v=q.v*(q.run>0?2.6:1); q.run=(q.run||0)-dt;
+      q.x+=Math.sin(q.h)*v*dt; q.z+=Math.cos(q.h)*v*dt; q.ph+=v*dt*4.2;
+      // hit by the player's car
+      if(dp<car.W/2+.5 && sp>2.5){ q.down=.01; q.dvx=p.vx*.7+(q.x-p.x)*2; q.dvz=p.vz*.7+(q.z-p.z)*2; Snd.thump(.2); shake=Math.min(.3,sp/40); }
+      for(const a of LIFE.cars){ if(Math.hypot(q.x-a.x,q.z-a.z)<1.4 && a.v>2.5){ q.down=.01; q.dvx=Math.sin(a.h)*a.v*.6; q.dvz=Math.cos(a.h)*a.v*.6; } }
+    }
+    if(n>=PED_MAX) continue;
+    const y=W.height(q.x,q.z,1.5)-curH, fall=q.down?Math.min(1,q.down*4)*Math.PI/2:0, s=q.scale;
+    _pq.setFromEuler(_pe.set(fall,q.h,0,'YXZ')); _pm.compose(_pv.set(q.x,y+(q.down?.15:0),q.z),_pq,_ps.set(s,s,s));
+    const sw=q.down?0:Math.sin(q.ph)*.55;
+    const put=(mesh,ox,oy,oz,rx,col)=>{ _pl.makeRotationX(rx); _pl.setPosition(ox,oy,oz); _pl.premultiply(_pm); mesh.setMatrixAt(n,_pl); mesh.setColorAt(n,col); };
+    put(P.torso,0,.9,0,0,q.shirt); put(P.head,0,1.65,0,0,q.skin);
+    put(P.legL,-.1,.9,0,sw,q.pants); put(P.legR,.1,.9,0,-sw,q.pants);
+    put(P.armL,-.27,1.46,0,-sw*.8,q.shirt); put(P.armR,.27,1.46,0,sw*.8,q.shirt);
+    n++;
+  }
+  for(const k in P){ P[k].count=n; P[k].instanceMatrix.needsUpdate=true; if(P[k].instanceColor) P[k].instanceColor.needsUpdate=true; }
+}
+
+function startLife(){
+  stopLife();
+  if(mode!=='free' || !lifeGrid()) return;
+  LIFE.on=true; spawnPeds(); spawnTraffic();
+}
+function stopLife(){
+  LIFE.on=false; for(const a of [...LIFE.cars]) removeTraffic(a); LIFE.peds.length=0;
+  for(const k in pedParts) pedParts[k].count=0;
+}
+function updateLife(dt){
+  if(!LIFE.on) return;
+  LIFE.t+=dt; if(LIFE.t>1.5){ LIFE.t=0; spawnPeds(); spawnTraffic(); }
+  updateTraffic(dt); updatePeds(dt);
 }
 
 /* ================= garage ================= */
@@ -1679,7 +1831,7 @@ function updateGarage(dt){
 /* ================= flow ================= */
 const show=(id,on)=>{ $(id).hidden=!on; };
 function toGarage(){
-  clearAgents(); if(parkBox){ scene.remove(parkBox); parkBox=null; } coneOverride=null; modeOver=false; hold=0; $('#result').hidden=true; $('#lap').hidden=true; Snd.siren(false);
+  stopLife(); clearAgents(); if(parkBox){ scene.remove(parkBox); parkBox=null; } coneOverride=null; modeOver=false; hold=0; $('#result').hidden=true; $('#lap').hidden=true; Snd.siren(false);
   state='garage'; Snd.horn(false); paused=false;
   placeCarGarage(); setLights(false,true); if(car.brake) car.brake.emissiveIntensity=car.brakeBase;
   if(camMode===1){ camMode=0; $('#camLbl').textContent=CAM_LABELS[0]; }
@@ -1726,7 +1878,7 @@ function renderPause(){
 $('#pause').addEventListener('click',async e=>{
   const el=e.target.closest('button'); if(!el) return;
   if(el.dataset.ploc && mode!=='free'){ toast("Bu rejimda xarita o'zgarmaydi"); return; }
-  if(el.dataset.ploc){ await switchLoc(el.dataset.ploc); setLights(!!LOCS[locKey].night,true); renderPause(); }
+  if(el.dataset.ploc){ await switchLoc(el.dataset.ploc); if(state==='drive') startLife(); setLights(!!LOCS[locKey].night,true); renderPause(); }
   if(el.dataset.q){ setQuality(el.dataset.q); renderPause(); }
   if(el.dataset.fps){ showFps=el.dataset.fps==='1'; store.set('showFps',showFps); $('#fps').hidden=!showFps; renderPause(); }
   if(el.dataset.snd){ Snd.setMuted(el.dataset.snd==='0'); renderPause(); }
