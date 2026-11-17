@@ -5,7 +5,7 @@ Brauzerda (telefon va kompyuterda) ishlaydigan realistik 3D mashina haydash o'yi
 ## Imkoniyatlar
 
 - **Real 3D mashina modellari**, salon ichi bilan birga: Concept R, Dodge Challenger LB, Ferrari F40 LB-Works, Mercedes-Benz E55 AMG va Porsche 911 GT3 R (garajda almashtiriladi)
-- **Katta xaritalar**: Shahar (1,3 km yo'l tarmog'i, chorrahalar, ko'priklar, 200 dan ortiq bino), Aerodrom (2 km uchish yo'lagi, angarlar, drift maydoni) va Trassa (3 km poyga trassasi, davra vaqti va rekord)
+- **Katta xaritalar**: Shahar (1,3 km yo'l tarmog'i, chorrahalar, ko'priklar, 200 dan ortiq bino; sharqiy chekkasidan yo'l aerodromga, g'arbiy chekkasidan favvorali maydonga olib boradi), Aerodrom (2 km uchish yo'lagi, angarlar, drift maydoni) va Trassa (3 km poyga trassasi, davra vaqti va rekord)
 - **Kichik joylar**: haqiqiy 360° fotosuratlar (HDRI) yerga proyeksiya qilingan: karyer, maydon va kechki shahar
 - **Tyuning**: asosiy rang va bo'yoq turi (metallik, yaltiroq, mat, sadaf), ikkinchi rang, disk rangi, tonirovka, podveska, dvigatel (Stage 1–3), shinalar, neon
 - **Haydash**: avtomat uzatmalar qutisi, qo'l tormozi bilan drift, drift ochkolari va rekord, shina izlari, uriladigan konuslar

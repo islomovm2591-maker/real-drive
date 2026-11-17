@@ -341,7 +341,7 @@ const camera=new THREE.PerspectiveCamera(40,1,.2,3000);
 
 /* ================= locations (real HDRI photographs projected onto the ground) ================= */
 const LOCS={
-  city:{label:'Shahar', type:'open', file:'assets/quarry_01_1k.hdr', exp:1.0, spawn:[0,0,0], build:()=>buildCity(), size:"1,3 km · ko'priklar"},
+  city:{label:'Shahar', type:'open', file:'assets/quarry_01_1k.hdr', exp:1.0, spawn:[0,0,0], build:()=>buildCity(), size:"2,5 km · aerodrom, maydon"},
   runway:{label:'Aerodrom', type:'open', file:'assets/blouberg_sunrise_2_1k.hdr', exp:1.0, spawn:[0,0,-900], build:()=>buildRunway(), size:'2 km'},
   circuit:{label:'Trassa', type:'open', file:'assets/quarry_01_1k.hdr', exp:1.0, spawn:[0,0,0], build:()=>buildCircuit(), size:'3 km'},
   quarry:{label:'Karyer', file:'assets/quarry_01_1k.hdr', h:11, R:150, exp:1.0, spawn:[0,0,-20]},
@@ -541,13 +541,29 @@ async function buildCity(){
     if(y>a){ const b=h2[i]; h2[i]=(b!==b||y>b)?y:b; } else { const b=h2[i]; h2[i]=(b!==b||a>b)?a:b; h1[i]=y; } };
   const lane=new Uint8Array(GW*GH);
   const DRIVE=/Asphalt|Lane|Crossing|Pavement|Concrete/, a=new THREE.Vector3(), b=new THREE.Vector3(), c=new THREE.Vector3(), E=.3;
+  // walls: every steep face of the model (railings, bridge pillars, retaining walls) stored per 1 m cell
+  // as up to two height spans, so a railing on a bridge does not block the street below it
+  const wl1=new Float32Array(GW*GH).fill(NaN), wh1=new Float32Array(GW*GH), wl2=new Float32Array(GW*GH).fill(NaN), wh2=new Float32Array(GW*GH);
+  const putWall=(i,lo,hi)=>{ const a1=wl1[i];
+    if(a1!==a1){ wl1[i]=lo; wh1[i]=hi; return; }
+    if(lo<wh1[i]+1 && hi>a1-1){ wl1[i]=Math.min(a1,lo); wh1[i]=Math.max(wh1[i],hi); return; }
+    const a2=wl2[i]; if(a2!==a2){ wl2[i]=lo; wh2[i]=hi; return; } wl2[i]=Math.min(a2,lo); wh2[i]=Math.max(wh2[i],hi); };
+  const wallTri=(a,b,c)=>{ if(Math.max(a.y,b.y,c.y)-Math.min(a.y,b.y,c.y)<.3) return;
+    const lab=a.distanceTo(b), lac=a.distanceTo(c), n=Math.min(400,Math.max(1,Math.ceil(Math.max(lab,lac)/.4)));
+    for(let i=0;i<=n;i++) for(let j=0;j<=n-i;j++){ const u=i/n, v=j/n, x=a.x+(b.x-a.x)*u+(c.x-a.x)*v, y=a.y+(b.y-a.y)*u+(c.y-a.y)*v, z=a.z+(b.z-a.z)*u+(c.z-a.z)*v;
+      const ix=Math.floor(x-x0), iz=Math.floor(z-z0); if(ix>=0&&iz>=0&&ix<GW&&iz<GH) putWall(iz*GW+ix,y-.25,y+.25); } };
   src.traverse(o=>{ if(!o.isMesh) return; o.receiveShadow=true;
-    if(!DRIVE.test(o.material.name||'')) return;
+    const mname=o.material.name||'';
+    if(!/Material\.002|Lane|Crossing/.test(mname)){ const pos=o.geometry.attributes.position, idx=o.geometry.index, M=o.matrixWorld;
+      for(let t=0;t<idx.count;t+=3){ a.fromBufferAttribute(pos,idx.getX(t)).applyMatrix4(M); b.fromBufferAttribute(pos,idx.getX(t+1)).applyMatrix4(M); c.fromBufferAttribute(pos,idx.getX(t+2)).applyMatrix4(M);
+        const ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,vx=c.x-a.x,vy=c.y-a.y,vz=c.z-a.z, ny=uz*vx-ux*vz, nl=Math.hypot(uy*vz-uz*vy,ny,ux*vy-uy*vx);
+        if(nl>1e-9 && Math.abs(ny)/nl<.5) wallTri(a,b,c); } }
+    if(!DRIVE.test(mname)) return;
     const pos=o.geometry.attributes.position, idx=o.geometry.index, M=o.matrixWorld, isLane=/Two_Lane/.test(o.material.name);
     for(let t=0;t<idx.count;t+=3){
       a.fromBufferAttribute(pos,idx.getX(t)).applyMatrix4(M); b.fromBufferAttribute(pos,idx.getX(t+1)).applyMatrix4(M); c.fromBufferAttribute(pos,idx.getX(t+2)).applyMatrix4(M);
       const ux=b.x-a.x,uy=b.y-a.y,uz=b.z-a.z,vx=c.x-a.x,vy=c.y-a.y,vz=c.z-a.z, ny=uz*vx-ux*vz, nl=Math.hypot(uy*vz-uz*vy,ny,ux*vy-uy*vx);
-      if(nl<1e-9||Math.abs(ny)/nl<.6) continue;
+      if(nl<1e-9||ny/nl<.6) continue;   // up-facing only (bridge undersides are not road)
       const den=(b.z-c.z)*(a.x-c.x)+(c.x-b.x)*(a.z-c.z); if(Math.abs(den)<1e-9) continue;
       const ix0=Math.max(0,Math.floor(Math.min(a.x,b.x,c.x)-x0)), ix1=Math.min(GW-1,Math.floor(Math.max(a.x,b.x,c.x)-x0));
       const iz0=Math.max(0,Math.floor(Math.min(a.z,b.z,c.z)-z0)), iz1=Math.min(GH-1,Math.floor(Math.max(a.z,b.z,c.z)-z0));
@@ -556,12 +572,22 @@ async function buildCity(){
         if(w0<-E||w1<-E||w2<-E) continue; put(iz*GW+ix, w0*a.y+w1*b.y+w2*c.y); if(isLane) lane[iz*GW+ix]=1; }
     } });
   const cell=(x,z)=>{ const ix=Math.floor(x-x0), iz=Math.floor(z-z0); return (ix<0||iz<0||ix>=GW||iz>=GH)?-1:iz*GW+ix; };
-  const sample=(x,z,y)=>{ const i=cell(x,z); if(i<0) return 0; const lo=h1[i]; if(lo!==lo||lo>y+1.6) return 0; const hi=h2[i];
+  let inLinkF=()=>null, linkHF=()=>0, zoneRoadF=()=>false;
+  const sample=(x,z,y)=>{ const L=inLinkF(x,z); if(L){ const i0=cell(x,z); if(i0<0||h1[i0]!==h1[i0]) return linkHF(L,x); }
+    const i=cell(x,z); if(i<0) return 0; const lo=h1[i]; if(lo!==lo||lo>y+1.6) return 0; const hi=h2[i];
     return (hi===hi && hi<=y+1.6 && Math.abs(hi-y)<Math.abs(lo-y))?hi:lo; };
-  const isRoad=(x,z,y)=>{ const i=cell(x,z); if(i<0) return false; const lo=h1[i]; return lo===lo && lo<=y+1.6; };
+  const isRoad=(x,z,y)=>{ const i=cell(x,z); if(i>=0){ const lo=h1[i]; if(lo===lo && lo<=y+1.6) return true; } return zoneRoadF(x,z); };
   // summed-area table of road cells -> fast "is this lot free / near a street" tests
+  const findEnd=(side)=>{ let best=null, bs=-1e9;
+    for(let iz=40; iz<GH-40; iz+=2) for(let ix=0; ix<GW; ix+=2){ const i=iz*GW+ix; if(!lane[i]||h1[i]>1.3||h2[i]===h2[i]) continue;
+      const x=x0+ix+.5, z=z0+iz+.5, sc=side*x-.25*Math.abs(z); if(sc>bs){ bs=sc; best={x,z,y:h1[i]}; } }
+    if(!best) return null;   // centre the link road on the street at that point
+    let za=best.z, zb=best.z; while(isRoad(best.x,za-1,1.5)&&best.z-za<20) za--; while(isRoad(best.x,zb+1,1.5)&&zb-best.z<20) zb++; best.z=(za+zb)/2; return best; };
+  const eastEnd=findEnd(1), westEnd=findEnd(-1);
+  const reserved=new Uint8Array(GW*GH);   // corridor of the link roads: no buildings there
+  for(const [e,side] of [[eastEnd,1],[westEnd,-1]]){ if(!e) continue; for(let iz=Math.floor(e.z-z0-10); iz<=Math.ceil(e.z-z0+10); iz++) for(let ix=0; ix<GW; ix++){ const x=x0+ix+.5; if(iz<0||iz>=GH||(side>0?x<e.x-2:x>e.x+2)) continue; reserved[iz*GW+ix]=1; } }
   const SW=GW+1, sat=new Int32Array(SW*(GH+1));
-  for(let iz=0;iz<GH;iz++){ let row=0; for(let ix=0;ix<GW;ix++){ row+=(h1[iz*GW+ix]===h1[iz*GW+ix])?1:0; sat[(iz+1)*SW+ix+1]=sat[iz*SW+ix+1]+row; } }
+  for(let iz=0;iz<GH;iz++){ let row=0; for(let ix=0;ix<GW;ix++){ row+=(h1[iz*GW+ix]===h1[iz*GW+ix]||reserved[iz*GW+ix])?1:0; sat[(iz+1)*SW+ix+1]=sat[iz*SW+ix+1]+row; } }
   const cnt=(xa,za,xb,zb)=>{ xa=clamp(Math.floor(xa-x0),0,GW); xb=clamp(Math.ceil(xb-x0),0,GW); za=clamp(Math.floor(za-z0),0,GH); zb=clamp(Math.ceil(zb-z0),0,GH); return sat[zb*SW+xb]-sat[za*SW+xb]-sat[zb*SW+xa]+sat[za*SW+xa]; };
   // buildings along the streets
   let seed=20261116; const rnd=()=>{ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; };
@@ -604,14 +630,66 @@ async function buildCity(){
       else { if(d>=rad) continue; nx=dx/d; nz=dz/d; pen=rad-d; }
       x+=nx*pen; z+=nz*pen; out={x,z,nx,nz}; }
     return out; };
-  const bx0=x0+3, bx1=x0+GW-3, bz0=z0+3, bz1=z0+GH-3;
-  return { group:g, spawn:[sx,sz,sh], bound:1e5, cones:()=>[], buildings:rects.length, grid:{cell,h1,h2,lane,isRoad}, parkSpots:spots, pushOut, road:isRoad,
+  // --- airport on the east edge, plaza on the west edge, each joined by a straight link road
+  const links=[], zones=[];
+  const linkRoad=(xa,xb,z,ya,yb)=>{ const lo=Math.min(xa,xb), hi=Math.max(xa,xb), len=hi-lo; if(len<1) return;
+    const gL=new THREE.PlaneGeometry(len,14,Math.ceil(len/20),1).rotateX(-Math.PI/2); const pos=gL.attributes.position, uv=gL.attributes.uv;
+    for(let k=0;k<pos.count;k++){ const px=pos.getX(k)+(lo+hi)/2, t=(px-xa)/(xb-xa); pos.setY(k,ya+(yb-ya)*clamp(t,0,1)+.02); uv.setXY(k,uv.getX(k)*len/10,uv.getY(k)*1.4); }
+    gL.computeVertexNormals(); const m=new THREE.Mesh(gL,asphaltMat()); m.position.set((lo+hi)/2,0,z); m.receiveShadow=true; g.add(m);
+    const W=[]; for(let x=lo+3;x<hi-3;x+=8) W.push([x,z,3,.15]); for(const o of [-6.5,6.5]) W.push([(lo+hi)/2,z+o,len,.14]);
+    const lm=quads(W,markMat,0); lm.onBeforeRender=()=>{}; for(let k=0;k<W.length;k++){ const mm=new THREE.Matrix4(); lm.getMatrixAt(k,mm); const pp=new THREE.Vector3().setFromMatrixPosition(mm); const t=(pp.x-xa)/(xb-xa); mm.elements[13]=ya+(yb-ya)*clamp(t,0,1)+.035; lm.setMatrixAt(k,mm); } g.add(lm);
+    links.push({lo,hi,z,xa,xb,ya,yb}); };
+  let air=null, plaza=null;
+  if(eastEnd){
+    air=buildRunway(); const ax=x0+GW+90; air.group.position.set(ax,0,eastEnd.z); g.add(air.group); air.ox=ax; air.oz=eastEnd.z;
+    for(let i=0;i<3;i++){ const r={x0:ax+398,x1:ax+442,z0:air.oz-105+i*80,z1:air.oz-55+i*80}; rects.push(r); for(let hx=Math.floor(r.x0/HC); hx<=Math.floor(r.x1/HC); hx++) for(let hz=Math.floor(r.z0/HC); hz<=Math.floor(r.z1/HC); hz++){ const key=hx+','+hz; (hash.get(key)||hash.set(key,[]).get(key)).push(r); } }
+    linkRoad(eastEnd.x-2, ax-22, eastEnd.z, eastEnd.y, 0);
+    zones.push({x0:ax-30,x1:ax+460,z0:air.oz-1060,z1:air.oz+1060});
+  }
+  if(westEnd){
+    const pcx=x0-170, pcz=westEnd.z, S=240; plaza={x:pcx,z:pcz,S};
+    const pave=canvasTex(256,256,(q,w,h)=>{ q.fillStyle='#a8a49b'; q.fillRect(0,0,w,h); specks(q,w,h,6000,.12,2); q.strokeStyle='rgba(60,55,50,.45)'; q.lineWidth=2; for(let k=0;k<=8;k++){ q.beginPath(); q.moveTo(k*32,0); q.lineTo(k*32,h); q.stroke(); q.beginPath(); q.moveTo(0,k*32); q.lineTo(w,k*32); q.stroke(); } });
+    pave.wrapS=pave.wrapT=THREE.RepeatWrapping;
+    g.add(slab(S,S,pcx,pcz,new THREE.MeshStandardMaterial({map:pave,roughness:.9,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4}),8));
+    // fountain in the middle (solid), lamp posts and a ring of parking bays
+    const fm=new THREE.MeshStandardMaterial({color:0xcfc8bb,roughness:.7}), wm=new THREE.MeshStandardMaterial({color:0x3d7fa6,roughness:.08,metalness:.1});
+    const f1=new THREE.Mesh(new THREE.CylinderGeometry(9,9.4,.9,40),fm); f1.position.set(pcx,.45,pcz); const f2=new THREE.Mesh(new THREE.CylinderGeometry(8.3,8.3,.1,40),wm); f2.position.set(pcx,.86,pcz);
+    const f3=new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.6,3.2,20),fm); f3.position.set(pcx,1.6,pcz); f1.castShadow=f3.castShadow=true; g.add(f1,f2,f3);
+    const P=[]; for(let k=0;k<12;k++){ const an=k/12*Math.PI*2; P.push([pcx+Math.cos(an)*28,pcz+Math.sin(an)*28,0,1.4]); }
+    for(let x=pcx-S/2+12;x<pcx+S/2-8;x+=4){ P.push([x,pcz-S/2+10,.12,6]); P.push([x,pcz+S/2-10,.12,6]); }
+    g.add(quads(P.filter(q=>q[3]===6).map(q=>[q[0],q[1],q[2],q[3]]),markMat,.03));
+    const poleG=new THREE.CylinderGeometry(.08,.11,6,8).translate(0,3,0), poleM=new THREE.MeshStandardMaterial({color:0x34373c,metalness:.6,roughness:.4});
+    const lamps=P.filter(q=>q[3]===1.4), pi=new THREE.InstancedMesh(poleG,poleM,lamps.length); lamps.forEach(([x,z],k)=>pi.setMatrixAt(k,new THREE.Matrix4().makeTranslation(x,0,z))); g.add(pi);
+    const fr={x0:pcx-9.4,x1:pcx+9.4,z0:pcz-9.4,z1:pcz+9.4}; rects.push(fr);
+    for(let hx=Math.floor(fr.x0/HC); hx<=Math.floor(fr.x1/HC); hx++) for(let hz=Math.floor(fr.z0/HC); hz<=Math.floor(fr.z1/HC); hz++){ const key=hx+','+hz; (hash.get(key)||hash.set(key,[]).get(key)).push(fr); }
+    linkRoad(westEnd.x+2, pcx+S/2, westEnd.z, westEnd.y, 0);
+    zones.push({x0:pcx-S/2,x1:pcx+S/2,z0:pcz-S/2,z1:pcz+S/2,plaza:true});
+  }
+  const inLink=(x,z)=>{ for(const L of links) if(x>=L.lo-1&&x<=L.hi+1&&Math.abs(z-L.z)<=7.5) return L; return null; };
+  const linkH=(L,x)=>L.ya+(L.yb-L.ya)*clamp((x-L.xa)/(L.xb-L.xa),0,1);
+  const zoneRoad=(x,z)=>{ if(inLink(x,z)) return true;
+    if(air && air.onRoad(x-air.ox,z-air.oz)) return true;
+    if(plaza && Math.abs(x-plaza.x)<plaza.S/2 && Math.abs(z-plaza.z)<plaza.S/2) return true; return false; };
+  const bx0=Math.min(x0+3,plaza?plaza.x-plaza.S/2-40:1e9), bx1=Math.max(x0+GW-3,air?air.ox+480:-1e9), bz0=Math.min(z0+3,air?air.oz-1080:1e9), bz1=Math.max(z0+GH-3,air?air.oz+1080:-1e9);
+  // wall lookup for the car at road height y: blocked if a span reaches above kerb height (y+0.5) and below the roof (y+1.3)
+  const blocked=(x,z,y)=>{ const i=cell(x,z); if(i<0) return false; const l1=wl1[i];
+    if(l1===l1 && l1<y+1.3 && wh1[i]>y+.5) return true; const l2=wl2[i]; return l2===l2 && l2<y+1.3 && wh2[i]>y+.5; };
+  inLinkF=inLink; linkHF=linkH; zoneRoadF=zoneRoad;
+  return { group:g, spawn:[sx,sz,sh], bound:1e5, buildings:rects.length, zones, links, blocked, wspans:{wl1,wh1,wl2,wh2,cell},
+    cones:()=>air?air.cones().map(([x,z])=>[x+air.ox,z+air.oz]):[], grid:{cell,h1,h2,lane,isRoad}, parkSpots:spots, pushOut, road:isRoad,
     height:sample, onRoad:(x,z)=>isRoad(x,z,curH),
     wall:(p)=>{
       if(p.x<bx0){ p.x=bx0; if(p.vx<0) p.vx*=-.3; } if(p.x>bx1){ p.x=bx1; if(p.vx>0) p.vx*=-.3; } if(p.z<bz0){ p.z=bz0; if(p.vz<0) p.vz*=-.3; } if(p.z>bz1){ p.z=bz1; if(p.vz>0) p.vz*=-.3; }
-      if(curH>3) return;                                   // on a bridge, above the roofs' base
-      const list=hash.get(Math.floor(p.x/HC)+','+Math.floor(p.z/HC)); if(!list) return;
       const rad=car.W/2, fx=Math.sin(p.h), fz=Math.cos(p.h); let hit=0;
+      // railings, pillars and walls of the road model
+      for(const off of [-car.L*.4,-car.L*.13,car.L*.13,car.L*.4]){ const cx=p.x+fx*off, cz=p.z+fz*off; let sx=0, sz=0, n=0, md=9;
+        for(let dz=-2;dz<=2;dz++) for(let dx=-2;dx<=2;dx++){ const qx=Math.floor(cx)+dx+.5, qz=Math.floor(cz)+dz+.5, d=Math.hypot(cx-qx,cz-qz); if(d>rad+.5) continue;
+          const iq=cell(qx,qz), hq=iq>=0?h1[iq]:NaN, yq=(hq===hq && Math.abs(hq-curH)<1)?Math.max(hq,curH):curH;   // road cells use their own height (ramps)
+          if(blocked(qx,qz,yq)){ const w=rad+.6-d; sx+=(cx-qx)/(d||1)*w; sz+=(cz-qz)/(d||1)*w; n++; md=Math.min(md,d); } }
+        if(n){ const l=Math.hypot(sx,sz); if(l<1e-6) continue; const nx=sx/l, nz=sz/l, pen=Math.min(.6,rad+.55-md);
+          if(pen>0){ p.x+=nx*pen; p.z+=nz*pen; } const vn=p.vx*nx+p.vz*nz; if(vn<0){ p.vx-=nx*vn*1.2; p.vz-=nz*vn*1.2; p.vx*=.9; p.vz*=.9; p.angVel*=.6; hit=Math.max(hit,-vn); } } }
+      if(curH>3){ if(hit>2){ Snd.thump(hit/14); shake=Math.min(.5,hit/25); } return; }   // on a bridge: above the buildings' base
+      const list=hash.get(Math.floor(p.x/HC)+','+Math.floor(p.z/HC)); if(!list){ if(hit>2){ Snd.thump(hit/14); shake=Math.min(.5,hit/25); } return; }
       for(const off of [-car.L*.33,0,car.L*.33]){ let cx=p.x+fx*off, cz=p.z+fz*off;
         for(const r of list){ if(cx<r.x0-rad||cx>r.x1+rad||cz<r.z0-rad||cz>r.z1+rad) continue;
           const qx=clamp(cx,r.x0,r.x1), qz=clamp(cz,r.z0,r.z1); let dx=cx-qx, dz=cz-qz, d=Math.hypot(dx,dz), nx, nz, pen;
