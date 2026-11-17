@@ -395,18 +395,19 @@ async function loadLocation(key){
   if(!hdrCache[L.file]){
     const url=await assetURL(L.file,'#?'); const tex=await new RGBELoader().loadAsync(url); URL.revokeObjectURL(url);
     tex.mapping=THREE.EquirectangularReflectionMapping;
-    hdrCache[L.file]={tex, sun:findSun(tex), hor:horizonColor(tex)};
+    hdrCache[L.file]={tex, sun:findSun(tex), hor:horizonColor(tex), ldr:ldrSky(tex)};
   }
   const {tex,sun:S,hor}=hdrCache[L.file];
   locKey=key; store.set('loc',key);
   const open=L.type==='open';
   scene.environment=tex; skyMat.uniforms.map.value=tex;
   if(!open){ skyMat.uniforms.height.value=L.h; skyMat.uniforms.radius.value=L.R; }
-  sky.visible=!open; shadowPlane.visible=!open; scene.background=open?tex:null;
+  sky.visible=!open; shadowPlane.visible=!open; scene.background=open?(quality==='min'?hdrCache[L.file].ldr:tex):null;
   scene.fog=open?new THREE.Fog(hor,250,2600):null;
   if(open) ensureGround().visible=true; else if(openGround) openGround.visible=false;
   for(const k in worlds) worlds[k].group.visible=false;
   if(open) (await ensureWorld(key)).group.visible=true;
+  applyCheapWorld();
   curH=0; curPitch=0;
   lap.last=-1; lap.on=false; lap.t=0;
   renderer.toneMappingExposure=L.exp;
@@ -633,6 +634,35 @@ function applyHeight(dt){
   if(openGround) openGround.position.y=-.1-curH;
   skid.position.y=-curH;
   car.root.rotation.order='YXZ'; car.root.rotation.x=-curPitch;
+}
+// ---- cheap world for weak phones: simple Lambert shading on roads, ground and buildings, and an
+// 8-bit copy of the sky photo instead of sampling the HDR every pixel
+function ldrSky(tex){
+  const {data,width,height}=tex.image, H=THREE.DataUtils.fromHalfFloat, W=256, Hh=128;
+  const c=canvasTex(W,Hh,(g)=>{ const im=g.createImageData(W,Hh);
+    for(let y=0;y<Hh;y++) for(let x=0;x<W;x++){ const sx=Math.floor(x/W*width), sy=Math.floor(y/Hh*height), k=(sy*width+sx)*4, o=(y*W+x)*4;
+      for(let ch=0;ch<3;ch++){ let v=H(data[k+ch])*.9; v=v/(1+v)*1.25; v=v<=.0031308?v*12.92:1.055*Math.pow(v,1/2.4)-.055; im.data[o+ch]=Math.max(0,Math.min(255,v*255)); } im.data[o+3]=255; }
+    g.putImageData(im,0,0); });
+  c.mapping=THREE.EquirectangularReflectionMapping; c.wrapS=THREE.RepeatWrapping; return c;
+}
+function cheapMat(m){
+  if(m.userData.cheap) return m.userData.cheap;
+  const c=new THREE.MeshLambertMaterial({map:m.map||null, color:m.color?m.color.clone():0xffffff, transparent:m.transparent, opacity:m.opacity, side:m.side, depthWrite:m.depthWrite,
+    vertexColors:m.vertexColors, polygonOffset:m.polygonOffset, polygonOffsetFactor:m.polygonOffsetFactor, polygonOffsetUnits:m.polygonOffsetUnits, alphaTest:m.alphaTest||0});
+  if(m.emissive){ c.emissive.copy(m.emissive); c.emissiveIntensity=m.emissiveIntensity; c.emissiveMap=m.emissiveMap||null; }
+  m.userData.cheap=c; c.userData.full=m; return c;
+}
+const cheapHemi=new THREE.HemisphereLight(0xffffff,0x6b6455,1.6); cheapHemi.visible=false;
+function applyCheapWorld(){
+  const on=quality==='min', roots=[...Object.values(worlds).map(w=>w.group), openGround].filter(Boolean);
+  for(const r of roots) r.traverse(o=>{ if(!(o.isMesh||o.isInstancedMesh)) return;
+    if(on && !o.material.userData.full) o.material=cheapMat(o.material);
+    else if(!on && o.material.userData.full) o.material=o.material.userData.full; });
+  const L=LOCS[locKey], h=L&&hdrCache[L.file];
+  if(h && L.type==='open') scene.background=on?h.ldr:h.tex;
+  if(!cheapHemi.parent) scene.add(cheapHemi);
+  cheapHemi.visible=on && !!h && L.type==='open';
+  if(h){ cheapHemi.color.copy(h.hor).multiplyScalar(1/Math.max(.05,Math.max(h.hor.r,h.hor.g,h.hor.b))); }
 }
 const worlds={};
 async function ensureWorld(key){ const L=LOCS[key]; if(!worlds[key]){ worlds[key]=await L.build(); scene.add(worlds[key].group); const s=worlds[key].spawn; L.spawn=[s[0],0,s[1]]; L.spawnH=s[2]||0; } return worlds[key]; }
@@ -948,7 +978,12 @@ const coneMat=new THREE.MeshStandardMaterial({map:coneTex,roughness:.55,side:THR
 const baseGeo=new THREE.BoxGeometry(.42,.04,.42).translate(0,.02,0);
 const baseMat=new THREE.MeshStandardMaterial({color:0x151515,roughness:.8});
 const cones=[];
-function makeCone(){ const g=new THREE.Group(); const a=new THREE.Mesh(coneGeo,coneMat), b=new THREE.Mesh(baseGeo,baseMat); a.castShadow=b.castShadow=true; g.add(a,b); scene.add(g); return g; }
+// all cones are drawn in two draw calls (instanced) instead of two per cone
+const CONE_MAX=96, coneIM=new THREE.InstancedMesh(coneGeo,coneMat,CONE_MAX), baseIM=new THREE.InstancedMesh(baseGeo,baseMat,CONE_MAX);
+coneIM.count=baseIM.count=0; coneIM.frustumCulled=baseIM.frustumCulled=false; coneIM.castShadow=baseIM.castShadow=true; scene.add(coneIM,baseIM);
+function makeCone(){ return new THREE.Object3D(); }
+function syncCones(){ let n=0; for(const c of cones){ if(!c.mesh.visible||n>=CONE_MAX) continue; c.mesh.updateMatrix(); coneIM.setMatrixAt(n,c.mesh.matrix); baseIM.setMatrixAt(n,c.mesh.matrix); n++; }
+  coneIM.count=baseIM.count=n; coneIM.instanceMatrix.needsUpdate=baseIM.instanceMatrix.needsUpdate=true; }
 let coneOverride=null;
 function layoutCones(){
   let spots=[];
@@ -962,6 +997,7 @@ function layoutCones(){
   while(cones.length<spots.length) cones.push({mesh:makeCone()});
   cones.forEach((c,i)=>{ c.mesh.visible=i<spots.length; if(i>=spots.length){ c.x=c.z=1e5; return; } const [x,z]=spots[i]; Object.assign(c,{x,z,x0:x,z0:z,y:(worlds[locKey]&&worlds[locKey].height)?worlds[locKey].height(x,z,1.5):0,vx:0,vz:0,down:false,yaw:Math.random()*6,tip:0});
     c.mesh.position.set(x,0,z); c.mesh.rotation.set(0,c.yaw,0); });
+  syncCones();
 }
 function updateCones(dt){
   for(const c of cones){
@@ -969,6 +1005,7 @@ function updateCones(dt){
     c.tip=lerp(c.tip,c.down?Math.PI/2:0,Math.min(1,dt*10));
     c.mesh.position.set(c.x,(c.down?.16:0)+(c.y||0)-curH,c.z); c.mesh.rotation.set(c.tip,c.yaw,0,'YXZ');
   }
+  syncCones();
 }
 
 /* ================= skid marks ================= */
@@ -1643,6 +1680,7 @@ function setQuality(q){
   renderer.setPixelRatio(baseRatio());
   sun.castShadow=q==='high';
   if(car.root) setLite(car,q==='min');
+  applyCheapWorld();
   const ms=q==='high'?2048:512;
   if(sun.shadow.mapSize.x!==ms){ sun.shadow.mapSize.set(ms,ms); if(sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map=null; } }
   resize();
