@@ -939,7 +939,7 @@ function addSkid(k,x,z){
   const dx=x-L.x, dz=z-L.z, d=Math.hypot(dx,dz); if(d<.25) return;
   _q.setFromAxisAngle(_up,Math.atan2(dx,dz)); _s.set(.24,1,d+.02); _p.set((x+L.x)/2,curH+.006+skidI*1e-6,(z+L.z)/2);
   _m.compose(_p,_q,_s); skid.setMatrixAt(skidI,_m); skidI=(skidI+1)%SKID_N; skid.count=Math.min(SKID_N,skid.count+1);
-  skid.instanceMatrix.needsUpdate=true; skidLast[k]={x,z};
+  skid.instanceMatrix.clearUpdateRanges?.(); skid.instanceMatrix.addUpdateRange?.(((skidI-1+SKID_N)%SKID_N)*16,16); skid.instanceMatrix.needsUpdate=true; skidLast[k]={x,z};
 }
 function clearSkids(){ skid.count=0; skidI=0; skidLast[0]=skidLast[1]=null; }
 
@@ -1159,7 +1159,7 @@ function updateDrive(dt){
   if(slipAng>.26 && speed>5){ drift.active=true; drift.t=1.2; drift.score+=dt*speed*slipAng*40; }
   else if(drift.active){ drift.t-=dt; if(drift.t<=0){ drift.active=false; const sc=Math.round(drift.score); if(sc>best){ best=sc; store.set('best',best); $('#bestV').textContent=best; if(sc>500) toast('Yangi rekord: '+sc); } drift.score=0; } }
   $('#drift').classList.toggle('on',drift.active && drift.score>50);
-  if(drift.active) $('#driftV').textContent=Math.round(drift.score);
+  if(drift.active) setText('driftV',String(Math.round(drift.score)));
   // shadow + light follow
   sun.position.set(p.x+sunDir.x*25,sunDir.y*25,p.z+sunDir.z*25); sun.target.position.set(p.x,0,p.z);
   shadowPlane.position.x=p.x; shadowPlane.position.z=p.z;
@@ -1276,7 +1276,10 @@ function collideAgents(){
   }
   if(hit>2){ Snd.thump(hit/14); shake=Math.min(.45,hit/25); M.bumps=(M.bumps||0)+1; M.lastBump=performance.now(); }
 }
-function setHud(title,val,sub){ const el=$('#lap'); if(el.hidden) el.hidden=false; $('#lapT').textContent=title; $('#lapV').textContent=val; $('#lapS').textContent=sub; }
+// HUD text is only written when it changes (writing the DOM every frame makes phones stutter)
+const hudCache={};
+function setText(id,v){ if(hudCache[id]!==v){ hudCache[id]=v; document.getElementById(id).textContent=v; } }
+function setHud(title,val,sub){ const el=$('#lap'); if(el.hidden) el.hidden=false; setText('lapT',title); setText('lapV',val); setText('lapS',sub); }
 function showResult(title,text){ modeOver=true; $('#resTitle').textContent=title; $('#resText').textContent=text; $('#result').hidden=false; Snd.siren(false); }
 const fmtT=t=>{ const m=Math.floor(t/60), s=t-m*60; return m+':'+(s<10?'0':'')+s.toFixed(1); };
 
