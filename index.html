@@ -307,7 +307,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
     <button class="mbtn primary" id="mResume">Davom etish</button>
     <button class="mbtn" id="mReset">Qayta boshlash</button>
     <button class="mbtn" id="mGarage">Garajga qaytish</button>
-    <p class="credit"><b>Versiya 23</b> (yangi menyu, tumandagi hayot). 3D modellar mualliflari garajda ko'rsatilgan. Qahramon: "Business man - low polygon game character", manoeldarochadeoliveira, Sketchfab (CC BY 4.0). Shahar yo'llari: "City Infrastructure Base Map", PropShop™, Sketchfab (CC BY 4.0). Ko'prik: "Most", Nikitos &amp; 3130, Sketchfab (CC BY 4.0). Markaziy tuman: "City", Voxelatio, Sketchfab (CC BY 4.0). Osmon panoramalari: Poly Haven (CC0).</p>
+    <p class="credit"><b>Versiya 24</b> (ko'prik va tumandagi turgan mashinalar olib tashlandi). 3D modellar mualliflari garajda ko'rsatilgan. Qahramon: "Business man - low polygon game character", manoeldarochadeoliveira, Sketchfab (CC BY 4.0). Shahar yo'llari: "City Infrastructure Base Map", PropShop™, Sketchfab (CC BY 4.0). Ko'prik: "Most", Nikitos &amp; 3130, Sketchfab (CC BY 4.0). Markaziy tuman: "City", Voxelatio, Sketchfab (CC BY 4.0). Osmon panoramalari: Poly Haven (CC0).</p>
   </div>
 </div>
 
@@ -734,7 +734,12 @@ async function buildCity(){
       const inner=bgl.scene; inner.updateMatrixWorld(true); const top=inner.children[0], e=top.matrixWorld.elements, s=Math.hypot(e[0],e[1],e[2]);
       const G=new THREE.Group(); G.add(inner); inner.position.set(-e[12],-e[13],-e[14]); G.scale.setScalar(.01/s); G.rotation.y=Math.PI; G.position.set(bx+31,DECK-8.0,zr1);
       inner.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=true; } });
-      G.updateMatrixWorld(true); mergeUnder(G,new Set());
+      G.updateMatrixWorld(true);
+      // the model has parked cars and lorries standing on the deck: take them out so the road is clear
+      const props=[]; inner.traverse(o=>{ if(!o.isMesh) return; const bb=new THREE.Box3().setFromObject(o), z=bb.getSize(new THREE.Vector3());
+        if(bb.min.y>DECK-1 && z.y>.8 && z.y<4.5 && Math.max(z.x,z.z)<18 && Math.min(z.x,z.z)>1.2) props.push(o); });
+      for(const o of props) o.removeFromParent();
+      mergeUnder(G,new Set());
       // the model has no textures: give it weathered concrete, and lay real asphalt with markings on the two carriageways
       const conc=canvasTex(256,256,(q,w,h)=>{ q.fillStyle='#a3a29c'; q.fillRect(0,0,w,h); specks(q,w,h,9000,.16,3); for(let k=0;k<14;k++){ q.fillStyle=`rgba(60,58,52,${Math.random()*.08})`; q.fillRect(Math.random()*w,0,2+Math.random()*10,h); } });
       conc.wrapS=conc.wrapT=THREE.RepeatWrapping;
@@ -758,7 +763,9 @@ async function buildCity(){
     // downtown: a real little city model, scaled up and made drivable by rasterising it into a 1 m grid
     try{
       const du=await assetURL('assets/downtown.glb','glTF'); const dgl=await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(du); URL.revokeObjectURL(du);
-      const D=dgl.scene, SC=9; D.scale.setScalar(SC); D.updateMatrixWorld(true);
+      const D=dgl.scene, SC=9;
+      { const drop=[]; D.traverse(o=>{ if(o.isMesh && /autos|bus/i.test(o.material.name||'')) drop.push(o); }); for(const o of drop) o.removeFromParent(); }   // parked vehicles
+      D.scale.setScalar(SC); D.updateMatrixWorld(true);
       const bb=new THREE.Box3().setFromObject(D), dx0=Math.floor(bb.min.x), dz0=Math.floor(bb.min.z), DW=Math.ceil(bb.max.x)-dx0+1, DH=Math.ceil(bb.max.z)-dz0+1;
       const gnd=new Float32Array(DW*DH).fill(NaN), top=new Float32Array(DW*DH).fill(-1e9), road=new Uint8Array(DW*DH);
       const A=new THREE.Vector3(), B=new THREE.Vector3(), Cc=new THREE.Vector3();
@@ -782,7 +789,11 @@ async function buildCity(){
       const sx=dx0+(a1+a2)/2+.5, sk=row*DW+Math.round((a1+a2)/2), sy=gnd[sk]===gnd[sk]?gnd[sk]:0;
       const ox=bx-sx, oz=zdt-dz0, oy=.8-sy; D.position.set(ox,oy,oz);
       D.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
-      D.updateMatrixWorld(true); mergeUnder(D,new Set()); g.add(D);
+      D.updateMatrixWorld(true); mergeUnder(D,new Set());
+      // fold the many small materials into one vertex-coloured mesh (draw calls are what slow phones down)
+      { const keep=new Set(); for(const o of D.children) if(o.isMesh && o.userData.merged && o.geometry.index && o.geometry.index.count/3>=3000) keep.add(o.material);
+        const f=buildLite(D,keep); for(const o of f.folded) o.visible=false, o.removeFromParent(); for(const o of f.lite) o.visible=true; }
+      g.add(D);
       N.down={D,dx0,dz0,DW,DH,gnd,top,road,ox,oy,oz, x0:dx0+ox, x1:dx0+DW+ox, z0:dz0+oz, z1:dz0+DH+oz};
     }catch(err){ console.warn('downtown',err); }
     north=N;
