@@ -176,6 +176,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
 #lap span{font-size:12px;color:var(--accent);font-weight:700}
 #lap>b{font-size:22px}
 #lap small{display:block;font-size:12px;color:var(--muted)}
+.hb.dim{opacity:.5}
 #fps{font-family:var(--f-display);font-size:13px;letter-spacing:.06em;color:var(--text);background:rgba(10,12,15,.55);border:1px solid var(--line);border-radius:10px;padding:6px 10px;white-space:nowrap;font-variant-numeric:tabular-nums}
 #best{font-family:var(--f-display);font-size:13px;letter-spacing:.06em;color:var(--muted);background:rgba(10,12,15,.55);border:1px solid var(--line);border-radius:10px;padding:6px 10px;white-space:nowrap}
 #best b{color:var(--text);font-weight:700}
@@ -211,6 +212,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
       <button class="hb" id="bPause" aria-label="Menyu"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
       <button class="hb" id="bCam"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h4l2-2h6l2 2h4v12H3z"/><circle cx="12" cy="13" r="3.5"/></svg><span id="camLbl">Orqa</span></button>
       <button class="hb" id="bLights" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 5c4 0 7 3 7 7s-3 7-7 7c-2 0-3-3-3-7s1-7 3-7z"/><path d="M3 8h6M3 12h6M3 16h6"/></svg>Chiroq</button>
+      <button class="hb" id="bExit" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="2.2"/><path d="M12 8v6l-3 6M12 14l3 6M8 11h8"/></svg><span id="exitLbl">Tushish</span></button>
       <button class="hb" id="bHorn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10v4h3l6 4V6L7 10z"/><path d="M16 9c1 1 1 5 0 6M19 7c2 2 2 8 0 10"/></svg>Signal</button>
     </div>
     <div id="fps" hidden></div>
@@ -223,6 +225,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
     <kbd>W</kbd> gaz · <kbd>S</kbd> tormoz / orqaga<br>
     <kbd>A</kbd> <kbd>D</kbd> rul · <kbd>Probel</kbd> qo'l tormozi<br>
     <kbd>C</kbd> kamera · <kbd>L</kbd> chiroq · <kbd>H</kbd> signal<br>
+    <kbd>F</kbd> mashinadan tushish / o'tirish<br>
     <kbd>R</kbd> qayta boshlash · <kbd>Esc</kbd> menyu
   </div>
   <div id="speedo">
@@ -278,7 +281,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
     <button class="mbtn primary" id="mResume">Davom etish</button>
     <button class="mbtn" id="mReset">Qayta boshlash</button>
     <button class="mbtn" id="mGarage">Garajga qaytish</button>
-    <p class="credit">3D modellar mualliflari garajda ko'rsatilgan. Shahar yo'llari: "City Infrastructure Base Map", PropShop™, Sketchfab (CC BY 4.0). Osmon panoramalari: Poly Haven (CC0).</p>
+    <p class="credit">3D modellar mualliflari garajda ko'rsatilgan. Qahramon: "Business man - low polygon game character", manoeldarochadeoliveira, Sketchfab (CC BY 4.0). Shahar yo'llari: "City Infrastructure Base Map", PropShop™, Sketchfab (CC BY 4.0). Osmon panoramalari: Poly Haven (CC0).</p>
   </div>
 </div>
 
@@ -789,6 +792,34 @@ const CARS={
     paint:['MI_Porsche_992_GT3_R_Rennsport_Livery'], paintKeepMap:true, rim:['MI_Porsche_992_GT3_R_Rennsport_Rim_Inst'], glass:['MI_Porsche_992_GT3_R_Rennsport_windows_Glass_Inst'],
     head:'MI_Porsche_992_GT3_R_Rennsport_Lights', sw:'STEER_HR_107', swLocal:true, eye:[.34,1.04,-.42],
     credit:'3D model: "Porsche 911 GT3 R Rennsport", vecarz, Sketchfab (CC BY-NC 4.0, notijorat).'},
+  // ---- everyday cars (light): used for city traffic, can also be driven
+  pc_compact:{name:"Ixcham", desc:"Shahar mashinasi · 1,4 l", file:'assets/pc_compact.glb', hp:95, mass:1080, top:175, grip:10, steer:.62, pack:true, lodSelf:true, wheelBox:true,
+    wheels:['WFL','WFR','WRL','WRR'], paint:['Body'], rim:[], glass:['Glass'], head:'Optics', color:null,
+    credit:'3D model: "Generic passenger car pack", Comrade1280, Sketchfab (CC BY 4.0).'},
+  pc_coupe:{name:"Kupe", desc:"Ikki eshikli · 2,0 l", file:'assets/pc_coupe.glb', hp:180, mass:1300, top:225, grip:10, steer:.62, pack:true, lodSelf:true, wheelBox:true,
+    wheels:['WFL','WFR','WRL','WRR'], paint:['Body_0'], rim:[], glass:['Glass_0'], head:'Optics_0', color:null,
+    credit:'3D model: "Generic passenger car pack", Comrade1280, Sketchfab (CC BY 4.0).'},
+  pc_hatchback:{name:"Xetchbek", desc:"Kichik oilaviy · 1,6 l", file:'assets/pc_hatchback.glb', hp:120, mass:1200, top:190, grip:10, steer:.62, pack:true, lodSelf:true, wheelBox:true,
+    wheels:['WFL','WFR','WRL','WRR'], paint:['Body_1'], rim:[], glass:['Glass_1'], head:'Optics_1', color:null,
+    credit:'3D model: "Generic passenger car pack", Comrade1280, Sketchfab (CC BY 4.0).'},
+  pc_minivan:{name:"Miniven", desc:"7 o‘rinli · 2,4 l", file:'assets/pc_minivan.glb', hp:170, mass:1850, top:185, grip:10, steer:.62, pack:true, lodSelf:true, wheelBox:true,
+    wheels:['WFL','WFR','WRL','WRR'], paint:['Body_2'], rim:[], glass:['Glass_2'], head:'Optics_2', color:null,
+    credit:'3D model: "Generic passenger car pack", Comrade1280, Sketchfab (CC BY 4.0).'},
+  pc_offroad:{name:"Yo‘ltanlamas", desc:"Ramali 4x4 · 3,0 l", file:'assets/pc_offroad.glb', hp:210, mass:2100, top:170, grip:10, steer:.62, pack:true, lodSelf:true, wheelBox:true,
+    wheels:['WFL','WFR','WRL','WRR'], paint:['Body_3'], rim:[], glass:['Glass_3'], head:'Optics_3', color:null,
+    credit:'3D model: "Generic passenger car pack", Comrade1280, Sketchfab (CC BY 4.0).'},
+  pc_pickup:{name:"Pikap", desc:"Yuk qutili · 3,5 l", file:'assets/pc_pickup.glb', hp:290, mass:2200, top:180, grip:10, steer:.62, pack:true, lodSelf:true, wheelBox:true,
+    wheels:['WFL','WFR','WRL','WRR'], paint:['Body_4'], rim:[], glass:['Glass_4'], head:'Optics_4', color:null,
+    credit:'3D model: "Generic passenger car pack", Comrade1280, Sketchfab (CC BY 4.0).'},
+  pc_sedan:{name:"Sedan", desc:"Oddiy sedan · 1,8 l", file:'assets/pc_sedan.glb', hp:140, mass:1350, top:200, grip:10, steer:.62, pack:true, lodSelf:true, wheelBox:true,
+    wheels:['WFL','WFR','WRL','WRR'], paint:['Body_5'], rim:[], glass:['Glass_5'], head:'Optics_5', color:null,
+    credit:'3D model: "Generic passenger car pack", Comrade1280, Sketchfab (CC BY 4.0).'},
+  pc_sport:{name:"Sport", desc:"Ikki o‘rinli · 3,0 l turbo", file:'assets/pc_sport.glb', hp:380, mass:1400, top:265, grip:10, steer:.62, pack:true, lodSelf:true, wheelBox:true,
+    wheels:['WFL','WFR','WRL','WRR'], paint:['Body_6'], rim:[], glass:['Glass_6'], head:'Optics_6', color:null,
+    credit:'3D model: "Generic passenger car pack", Comrade1280, Sketchfab (CC BY 4.0).'},
+  pc_wagon:{name:"Universal", desc:"Katta yukxonali · 2,0 l", file:'assets/pc_wagon.glb', hp:160, mass:1500, top:205, grip:10, steer:.62, pack:true, lodSelf:true, wheelBox:true,
+    wheels:['WFL','WFR','WRL','WRR'], paint:['Body_8'], rim:[], glass:['Glass_8'], head:'Optics_8', color:null,
+    credit:'3D model: "Generic passenger car pack", Comrade1280, Sketchfab (CC BY 4.0).'},
 };
 let carKey=store.get('carKey','concept'); if(!CARS[carKey]) carKey='concept';
 let CAR=CARS[carKey];
@@ -899,7 +930,7 @@ function mergeUnder(container, skip){
 const san=n=>THREE.PropertyBinding.sanitizeNodeName(n);
 async function buildRig(key,onP,lod){
   const C=CARS[key], rig={};
-  const url=await assetURL(lod?C.file.replace(/\.glb$/,'_lod.glb'):C.file,'glTF',onP);
+  const url=await assetURL(lod&&!C.lodSelf?C.file.replace(/\.glb$/,'_lod.glb'):C.file,'glTF',onP);
   const gltf=await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url); URL.revokeObjectURL(url);
   const src=gltf.scene; const find=n=>src.getObjectByName(n)||src.getObjectByName(san(n));
   const mats={};
@@ -938,9 +969,9 @@ async function buildRig(key,onP,lod){
     if(node) node.visible=false; wheelNodes[i]=cl; });
   C.wheels.forEach((n,i)=>{
     const node=wheelNodes[i];
-    const c=node.getWorldPosition(new THREE.Vector3());
+    const c=C.wheelBox?new THREE.Box3().setFromObject(node).getCenter(new THREE.Vector3()):node.getWorldPosition(new THREE.Vector3());
     const axle=new THREE.Vector3().setFromMatrixColumn(node.matrixWorld,0).normalize();
-    if(Math.abs(axle.x)<.5) axle.set(1,0,0);
+    if(Math.abs(axle.x)<.5||C.wheelBox) axle.set(1,0,0);
     let pad=C.pads?find(C.pads[i]):null;
     if(pad && !pad.parent) pad=null;
     if(!pad && C.padRe){ const re=new RegExp(C.padRe); node.traverse(o=>{ if(!pad && o!==node && re.test(o.name)) pad=o; }); }
@@ -1124,6 +1155,7 @@ const tbtn={left:false,right:false,gas:false,brake:false,hb:false};
 addEventListener('keydown',e=>{
   keys[e.code]=true; if(e.repeat||state!=='drive') return;
   if(e.code==='KeyC') cycleCam();
+  if(e.code==='KeyF'||e.code==='KeyE') toggleFoot();
   if(e.code==='KeyL') setLights(!player.lights);
   if(e.code==='KeyH') Snd.horn(true);
   if(e.code==='KeyR') restart();
@@ -1284,6 +1316,7 @@ function stepPhys(dt,inp){
 const tmpV=new THREE.Vector3(), tmpV2=new THREE.Vector3();
 let hudSpd=-1, hudGear='', hudRpm='';
 function updateDrive(dt){
+  if(HERO.onFoot){ updateFoot(dt); return; }
   const p=player, inp=(hold>0||modeOver)?{thr:0,brk:0,steer:0,hb:true}:readInput();
   p.steer+=(inp.steer-p.steer)*Math.min(1,dt*(inp.steer===0?6:3.6));
   const Wd=worlds[locKey]; player.onRoad=LOCS[locKey].type!=='open'||Wd.onRoad(p.x,p.z);
@@ -1322,7 +1355,7 @@ function updateDrive(dt){
   // shadow + light follow
   sun.position.set(p.x+sunDir.x*25,sunDir.y*25,p.z+sunDir.z*25); sun.target.position.set(p.x,0,p.z);
   shadowPlane.position.x=p.x; shadowPlane.position.z=p.z;
-  updateCamera(dt);
+  updateCamera(dt); updateExitBtn();
   const kmh=speed*3.6, si=Math.round(kmh);
   if(si!==hudSpd){ hudSpd=si; $('#spd').textContent=si; }
   const gl=p.reverse?'R':(speed<.3&&!inp.thr?'N':String(p.gear+1));
@@ -1572,7 +1605,7 @@ function updatePark(dt){
 }
 
 function startMode(){
-  stopLife(); clearAgents(); hold=0; modeOver=false; coneOverride=null; $('#result').hidden=true; $('#resNext').hidden=true; Snd.siren(false);
+  leaveFoot(); stopLife(); clearAgents(); hold=0; modeOver=false; coneOverride=null; $('#result').hidden=true; $('#resNext').hidden=true; Snd.siren(false);
   if(parkBox){ scene.remove(parkBox); parkBox=null; }
   const lvl=M.lvl; for(const k in M) delete M[k]; M.lvl=lvl||0;
   if(mode==='race') startRace(); else if(mode==='police') startPolice(); else if(mode==='park') startPark();
@@ -1589,7 +1622,7 @@ function updateMode(dt){
 
 /* ================= city life: traffic cars and pedestrians (free drive in the city) ================= */
 const LIFE={on:false, cars:[], peds:[], t:0};
-const TRAFFIC_KEYS=['dodge','f40','concept','merc','porsche'];
+const TRAFFIC_KEYS=Object.keys(CARS).filter(k=>CARS[k].pack);
 const TRAFFIC_COLORS=['#e9ebee','#0f1012','#7a7f86','#1d4fd6','#a80000','#23324a','#c0c4c8','#0e5e4f','#f2b705'];
 function cloneFrom(SRC,color,paintKeepMap){
   const root=SRC.root.clone(true), wheels=[], kill=[], swap=new Map();
@@ -1635,7 +1668,7 @@ async function spawnTraffic(){
     const key=lifeRand(TRAFFIC_KEYS), SRC=await ensureLod(key); if(!LIFE.on) return; if(!SRC) continue;
     const c=cloneFrom(SRC,lifeRand(TRAFFIC_COLORS),!!CARS[key].paintKeepMap);
     const h=bestHeading(W,W.grid.lane,s.x,s.z,Math.random()*6.28,26,40,0).h;
-    const a=Object.assign({x:s.x,z:s.z,h,v:0,steer:0,y:W.height(s.x,s.z,1.5),traffic:true,stuck:0,cruise:8+Math.random()*5,turn:0,plan:0},c);
+    const a=Object.assign({key,x:s.x,z:s.z,h,v:0,steer:0,y:W.height(s.x,s.z,1.5),traffic:true,stuck:0,cruise:8+Math.random()*5,turn:0,plan:0},c);
     a.root.position.set(a.x,a.y-curH,a.z); a.root.rotation.y=h; agents.push(a); LIFE.cars.push(a);
   }
 }
@@ -1738,6 +1771,116 @@ function updateLife(dt){
   updateTraffic(dt); updatePeds(dt);
 }
 
+/* ================= on foot: the driver can get out, walk and take another car ================= */
+const HERO={ready:false, root:null, mixer:null, act:{}, cur:null, onFoot:false, v:0, hold:0, jumpT:0, camYaw:0, parked:null};
+async function loadHero(){
+  if(HERO.ready||HERO.loading) return HERO.loading;
+  HERO.loading=(async()=>{
+    const url=await assetURL('assets/hero.glb','glTF');
+    const g=await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url); URL.revokeObjectURL(url);
+    const root=new THREE.Group(), m=g.scene; root.add(m);
+    m.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.frustumCulled=false; } });
+    // measure the posed (skinned) body, not the raw bind-pose geometry
+    m.updateMatrixWorld(true); const b=new THREE.Box3().setFromObject(m,true), h=b.max.y-b.min.y; m.scale.multiplyScalar(1.78/h);
+    m.updateMatrixWorld(true); const b2=new THREE.Box3().setFromObject(m,true); m.position.y-=b2.min.y;
+    HERO.mixer=new THREE.AnimationMixer(m);
+    for(const clip of g.animations){ const k=clip.name.replace(/^Rig\|/,''); if(['idle','walk','run','jump'].includes(k)) HERO.act[k]=HERO.mixer.clipAction(clip); }
+    if(HERO.act.jump){ HERO.act.jump.setLoop(THREE.LoopOnce,1); HERO.act.jump.clampWhenFinished=true; }
+    root.visible=false; scene.add(root); HERO.root=root; HERO.ready=true;
+  })();
+  return HERO.loading;
+}
+function heroPlay(name,fade=.25){
+  const a=HERO.act[name]; if(!a||HERO.cur===a) return;
+  a.reset().play(); if(HERO.cur) HERO.cur.crossFadeTo(a,fade,false); HERO.cur=a;
+}
+function canFoot(){ return mode==='free' && state==='drive' && !paused; }
+function nearestCar(){
+  const p=player; let best=null;
+  const test=(x,z,len,item)=>{ const d=Math.hypot(x-p.x,z-p.z)-len/2; if(d<2.2 && (!best||d<best.d)) best={d,item}; };
+  if(HERO.parked) test(HERO.parked.x,HERO.parked.z,car.L,{own:true});
+  for(const a of agents){ if(a.traffic||a.parkedKey) test(a.x,a.z,4.3,{agent:a}); }
+  return best&&best.item;
+}
+function updateExitBtn(){
+  const b=$('#bExit'); if(!b) return; const show=canFoot(); if(b.hidden===show) b.hidden=!show;
+  if(!show) return;
+  const txt=HERO.onFoot?(nearestCar()?"O'tirish":'Piyoda'):'Tushish';
+  if(b.dataset.t!==txt){ b.dataset.t=txt; $('#exitLbl').textContent=txt; b.classList.toggle('dim',txt==='Piyoda'); }
+}
+async function getOut(){
+  const p=player; if(Math.hypot(p.vx,p.vz)>3){ toast("Avval to'xtang"); return; }
+  await loadHero(); if(!canFoot()) return;
+  HERO.parked={x:p.x,z:p.z,h:p.h,y:curH};
+  const rx=Math.cos(p.h), rz=-Math.sin(p.h), off=car.W/2+.75;
+  p.x+=rx*off; p.z+=rz*off; p.vx=p.vz=p.angVel=0; p.vL=p.vT=0;
+  HERO.onFoot=true; HERO.v=0; HERO.camYaw=p.h; HERO.root.visible=true; heroPlay('idle',0);
+  Snd.update(900,0,0,0,false); setLights(false,true); $('#speedo').hidden=true;
+}
+async function getIn(){
+  const n=nearestCar(); if(!n){ toast("Yaqinda mashina yo'q"); return; }
+  const p=player;
+  if(n.own){ const q=HERO.parked; p.x=q.x; p.z=q.z; p.h=q.h; }
+  else {
+    const a=n.agent, key=a.traffic?a.key:a.parkedKey; if(!key) return;
+    // leave the current car parked where it stands
+    const own=HERO.parked, oldKey=carKey, oldRoot=car.root;
+    toast('Mashina ochilmoqda…');
+    try{ await useCar(key); }catch(e){ toast("Bu mashinani ochib bo'lmadi"); return; }
+    if(a.traffic) removeTraffic(a); else { const i=agents.indexOf(a); if(i>=0) agents.splice(i,1); }
+    if(own && oldRoot!==car.root){ oldRoot.position.set(own.x,own.y-curH,own.z); oldRoot.rotation.set(0,own.h,0); scene.add(oldRoot);
+      agents.push({x:own.x,z:own.z,h:own.h,y:own.y,v:0,static:true,parkedKey:oldKey,root:oldRoot,wheels:[],mats:[]}); }
+    p.x=a.x; p.z=a.z; p.h=a.h;
+  }
+  p.vx=p.vz=p.angVel=0; p.camYaw=p.h; p.reverse=false; p.gear=0;
+  HERO.onFoot=false; HERO.parked=null; HERO.root.visible=false; $('#speedo').hidden=false;
+}
+function toggleFoot(){ if(!canFoot()) return; if(HERO.onFoot) getIn(); else getOut(); }
+function leaveFoot(){   // back to the car, e.g. when the mode or map changes
+  if(!HERO.onFoot) return; const q=HERO.parked; if(q){ player.x=q.x; player.z=q.z; player.h=q.h; }
+  HERO.onFoot=false; HERO.parked=null; if(HERO.root) HERO.root.visible=false; $('#speedo').hidden=false;
+}
+function updateFoot(dt){
+  const p=player, inp=readInput(), W=worlds[locKey];
+  // controls: gas = walk (run after holding), brake = step back, left/right = turn, handbrake = jump
+  HERO.hold=inp.thr?HERO.hold+dt:0;
+  const want=inp.thr?(HERO.hold>.7?5.6:1.7):inp.brk?-1.1:0;
+  HERO.v+=clamp(want-HERO.v,-10*dt,7*dt);
+  p.h+=inp.steer*2.6*dt*(HERO.v<-.1?-1:1);
+  if(inp.hb && HERO.jumpT<=0 && HERO.act.jump){ HERO.jumpT=1; heroPlay('jump',.1); }
+  HERO.jumpT-=dt;
+  const ox=p.x, oz=p.z; p.x+=Math.sin(p.h)*HERO.v*dt; p.z+=Math.cos(p.h)*HERO.v*dt;
+  // walls, buildings and cars stop the walker
+  if(W && W.blocked){ const yq=curH; for(const [dx,dz] of [[.35,0],[-.35,0],[0,.35],[0,-.35]]) if(W.blocked(p.x+dx,p.z+dz,yq)){ p.x=ox; p.z=oz; HERO.v*=.3; break; } }
+  if(W && W.pushOut){ const r=W.pushOut(p.x,p.z,.4); if(r){ p.x=r.x; p.z=r.z; } }
+  const solid=[...agents.map(a=>({x:a.x,z:a.z,h:a.h,L:4.3,W:1.9})), ...(HERO.parked?[{x:HERO.parked.x,z:HERO.parked.z,h:HERO.parked.h,L:car.L,W:car.W}]:[])];
+  for(const s of solid){ const fx=Math.sin(s.h), fz=Math.cos(s.h), dx=p.x-s.x, dz=p.z-s.z, a=dx*fx+dz*fz, l=dx*fz-dz*fx, hl=s.L/2+.3, hw=s.W/2+.3;
+    if(Math.abs(a)<hl && Math.abs(l)<hw){ if(hl-Math.abs(a)<hw-Math.abs(l)){ const na=Math.sign(a)*hl; p.x=s.x+fx*na+fz*l; p.z=s.z+fz*na-fx*l; } else { const nl=Math.sign(l)*hw; p.x=s.x+fx*a+fz*nl; p.z=s.z+fz*a-fx*nl; } } }
+  if(W && !W.blocked){ const Rd=LOCS[locKey].type==='open'?W.bound:LOCS[locKey].R*.72, d=Math.hypot(p.x,p.z); if(d>Rd){ p.x*=Rd/d; p.z*=Rd/d; } }
+  // animation
+  const sp=Math.abs(HERO.v);
+  if(HERO.jumpT<=0) heroPlay(sp>3.2?'run':sp>.25?'walk':'idle');
+  if(HERO.act.walk) HERO.act.walk.timeScale=Math.max(.6,sp/1.6);
+  if(HERO.act.run) HERO.act.run.timeScale=Math.max(.7,sp/5.4);
+  HERO.mixer.update(dt);
+  // world height follows the walker; the parked car keeps its own height
+  applyHeight(dt);
+  HERO.root.position.set(p.x,0,p.z); HERO.root.rotation.set(0,p.h,0);
+  car.root.rotation.x=0;
+  if(HERO.parked){ const q=HERO.parked; car.root.position.set(q.x,q.y-curH,q.z); car.root.rotation.y=q.h; }
+  updateLife(dt); drawAgents(dt); updateCones(dt);
+  sun.position.set(p.x+sunDir.x*25,sunDir.y*25,p.z+sunDir.z*25); sun.target.position.set(p.x,0,p.z);
+  shadowPlane.position.x=p.x; shadowPlane.position.z=p.z;
+  // third-person camera over the shoulder
+  HERO.camYaw+=wrapA(p.h-HERO.camYaw)*Math.min(1,dt*(sp>.2?3:1.2));
+  const cx=Math.sin(HERO.camYaw), cz=Math.cos(HERO.camYaw), portrait=innerHeight>innerWidth, dist=portrait?5.2:3.8;
+  tmpV.set(p.x-cx*dist,1.9+(portrait?.6:0),p.z-cz*dist); camera.position.lerp(tmpV,1-Math.exp(-dt*8));
+  camera.lookAt(p.x+cx*1.2,1.35,p.z+cz*1.2);
+  if(Math.abs(camera.fov-58)>.05){ camera.fov=lerp(camera.fov,58,Math.min(1,dt*4)); camera.updateProjectionMatrix(); }
+  Snd.update(900,0,0,0,false);
+  updateExitBtn();
+}
+
 /* ================= garage ================= */
 let tab=store.get('tab','paint');
 const TABS=[['paint','Rang'],['paint2','2-rang'],['rims','Disklar'],['tint','Oyna'],['susp','Podveska'],['engine','Dvigatel'],['tires','Shinalar'],['neon','Neon'],['loc','Xarita']];
@@ -1831,7 +1974,7 @@ function updateGarage(dt){
 /* ================= flow ================= */
 const show=(id,on)=>{ $(id).hidden=!on; };
 function toGarage(){
-  stopLife(); clearAgents(); if(parkBox){ scene.remove(parkBox); parkBox=null; } coneOverride=null; modeOver=false; hold=0; $('#result').hidden=true; $('#lap').hidden=true; Snd.siren(false);
+  leaveFoot(); stopLife(); clearAgents(); if(parkBox){ scene.remove(parkBox); parkBox=null; } coneOverride=null; modeOver=false; hold=0; $('#result').hidden=true; $('#lap').hidden=true; Snd.siren(false);
   state='garage'; Snd.horn(false); paused=false;
   placeCarGarage(); setLights(false,true); if(car.brake) car.brake.emissiveIntensity=car.brakeBase;
   if(camMode===1){ camMode=0; $('#camLbl').textContent=CAM_LABELS[0]; }
@@ -1878,7 +2021,7 @@ function renderPause(){
 $('#pause').addEventListener('click',async e=>{
   const el=e.target.closest('button'); if(!el) return;
   if(el.dataset.ploc && mode!=='free'){ toast("Bu rejimda xarita o'zgarmaydi"); return; }
-  if(el.dataset.ploc){ await switchLoc(el.dataset.ploc); if(state==='drive') startLife(); setLights(!!LOCS[locKey].night,true); renderPause(); }
+  if(el.dataset.ploc){ leaveFoot(); await switchLoc(el.dataset.ploc); if(state==='drive') startLife(); setLights(!!LOCS[locKey].night,true); renderPause(); }
   if(el.dataset.q){ setQuality(el.dataset.q); renderPause(); }
   if(el.dataset.fps){ showFps=el.dataset.fps==='1'; store.set('showFps',showFps); $('#fps').hidden=!showFps; renderPause(); }
   if(el.dataset.snd){ Snd.setMuted(el.dataset.snd==='0'); renderPause(); }
@@ -1893,6 +2036,7 @@ $('#mGarage').addEventListener('click',()=>toGarage());
 $('#goBtn').addEventListener('click',startDrive);
 $('#bPause').addEventListener('click',()=>togglePause(true));
 $('#bCam').addEventListener('click',cycleCam);
+$('#bExit').addEventListener('click',toggleFoot);
 $('#bLights').addEventListener('click',()=>setLights(!player.lights));
 const hornBtn=$('#bHorn');
 hornBtn.addEventListener('pointerdown',e=>{ e.preventDefault(); Snd.horn(true); });
