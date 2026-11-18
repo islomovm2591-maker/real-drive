@@ -157,6 +157,14 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
 </style>
 <style>
 #panel>*{flex-shrink:0}
+.steps{display:flex;gap:6px}
+.steps button{flex:1;padding:7px 4px;border-radius:10px;background:var(--chip);font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.steps button b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--chip-hi);margin-right:4px;font-size:11px}
+.steps button[aria-current="step"]{background:var(--text);color:#0b0d10}
+.steps button[aria-current="step"] b{background:var(--accent);color:#fff}
+.step{display:flex;flex-direction:column;gap:12px}
+.navrow{display:flex;gap:8px}.navrow .mbtn{flex:none;padding:0 16px}.navrow .go{flex:1}
+.chip[disabled]{opacity:.4}
 #rotate{position:fixed;inset:0;z-index:15;display:grid;place-items:center;padding:16px;background:rgba(5,6,8,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);text-align:center}
 #rotate .card{width:min(340px,100%);display:flex;flex-direction:column;gap:12px;align-items:center}
 #rotate h3{margin:0;font-family:var(--f-display);font-size:28px;letter-spacing:.04em;text-transform:uppercase}
@@ -202,11 +210,21 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
       <div class="carname"><div class="eyebrow"><span id="carIdx">1 / 2</span> · <span id="locName">Karyer</span></div><h2 id="carName">Concept R</h2><p id="carDesc"></p></div>
       <button class="arrow" id="nextCar" aria-label="Keyingi mashina"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 5l7 7-7 7"/></svg></button>
     </div>
-    <div class="stats" id="stats"></div>
-    <div class="tabs" role="tablist" id="tabs"></div>
-    <div class="tabbody" id="tabbody"></div>
-    <div><div class="eyebrow" style="margin-bottom:6px">Rejim</div><div class="row" id="modeRow"></div></div>
-    <button class="go" id="goBtn">Haydash <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg></button>
+    <div class="steps" id="steps"><button data-step="1"><b>1</b> Mashina</button><button data-step="2"><b>2</b> Tyuning</button><button data-step="3"><b>3</b> Xarita</button></div>
+    <div class="step" id="step1">
+      <div class="stats" id="stats"></div>
+      <button class="go" data-step="2">Tanlash <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 5l7 7-7 7z"/></svg></button>
+    </div>
+    <div class="step" id="step2" hidden>
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div class="tabbody" id="tabbody"></div>
+      <div class="navrow"><button class="mbtn" data-step="1">Orqaga</button><button class="go" data-step="3">Davom etish <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 5l7 7-7 7z"/></svg></button></div>
+    </div>
+    <div class="step" id="step3" hidden>
+      <div><div class="eyebrow" style="margin-bottom:6px">Rejim</div><div class="row" id="modeRow"></div></div>
+      <div><div class="eyebrow" style="margin-bottom:6px">Xarita</div><div class="row" id="mapRow"></div><p class="credit" id="mapNote" style="margin-top:6px"></p></div>
+      <div class="navrow"><button class="mbtn" data-step="2">Orqaga</button><button class="go" id="goBtn">Haydash <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg></button></div>
+    </div>
     <p class="credit"><span id="carCredit"></span> Osmon panoramalari: Poly Haven (CC0).</p>
   </div>
 </div>
@@ -289,7 +307,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
     <button class="mbtn primary" id="mResume">Davom etish</button>
     <button class="mbtn" id="mReset">Qayta boshlash</button>
     <button class="mbtn" id="mGarage">Garajga qaytish</button>
-    <p class="credit"><b>Versiya 22</b> (ko'prik va markaziy tuman). 3D modellar mualliflari garajda ko'rsatilgan. Qahramon: "Business man - low polygon game character", manoeldarochadeoliveira, Sketchfab (CC BY 4.0). Shahar yo'llari: "City Infrastructure Base Map", PropShop™, Sketchfab (CC BY 4.0). Ko'prik: "Most", Nikitos &amp; 3130, Sketchfab (CC BY 4.0). Markaziy tuman: "City", Voxelatio, Sketchfab (CC BY 4.0). Osmon panoramalari: Poly Haven (CC0).</p>
+    <p class="credit"><b>Versiya 23</b> (yangi menyu, tumandagi hayot). 3D modellar mualliflari garajda ko'rsatilgan. Qahramon: "Business man - low polygon game character", manoeldarochadeoliveira, Sketchfab (CC BY 4.0). Shahar yo'llari: "City Infrastructure Base Map", PropShop™, Sketchfab (CC BY 4.0). Ko'prik: "Most", Nikitos &amp; 3130, Sketchfab (CC BY 4.0). Markaziy tuman: "City", Voxelatio, Sketchfab (CC BY 4.0). Osmon panoramalari: Poly Haven (CC0).</p>
   </div>
 </div>
 
@@ -401,7 +419,10 @@ function findSun(tex){
   const d=new THREE.Vector3(Math.cos(th)*Math.cos(phi), Math.sin(th), Math.cos(th)*Math.sin(phi));
   return {dir:d, power:best};
 }
-async function loadLocation(key){
+// map loads run one after another (choosing a mode and pressing "Haydash" may both ask for a map)
+let locQueue=Promise.resolve();
+function loadLocation(key){ const run=()=>loadLocationNow(key); const p=locQueue.then(run,run); locQueue=p.catch(()=>{}); return p; }
+async function loadLocationNow(key){
   const L=LOCS[key];
   if(!hdrCache[L.file]){
     const url=await assetURL(L.file,'#?'); const tex=await new RGBELoader().loadAsync(url); URL.revokeObjectURL(url);
@@ -409,6 +430,7 @@ async function loadLocation(key){
     hdrCache[L.file]={tex, sun:findSun(tex), hor:horizonColor(tex), ldr:ldrSky(tex), soft:softSky(tex)};
   }
   const {tex,sun:S,hor}=hdrCache[L.file];
+  if(L.type==='open') await ensureWorld(key);   // build the map before it becomes the current one
   locKey=key; store.set('loc',key);
   const open=L.type==='open';
   scene.environment=hdrCache[L.file].soft; skyMat.uniforms.map.value=hdrCache[L.file].soft;
@@ -712,7 +734,26 @@ async function buildCity(){
       const inner=bgl.scene; inner.updateMatrixWorld(true); const top=inner.children[0], e=top.matrixWorld.elements, s=Math.hypot(e[0],e[1],e[2]);
       const G=new THREE.Group(); G.add(inner); inner.position.set(-e[12],-e[13],-e[14]); G.scale.setScalar(.01/s); G.rotation.y=Math.PI; G.position.set(bx+31,DECK-8.0,zr1);
       inner.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=true; } });
-      G.updateMatrixWorld(true); mergeUnder(G,new Set()); g.add(G); N.bridge=G;
+      G.updateMatrixWorld(true); mergeUnder(G,new Set());
+      // the model has no textures: give it weathered concrete, and lay real asphalt with markings on the two carriageways
+      const conc=canvasTex(256,256,(q,w,h)=>{ q.fillStyle='#a3a29c'; q.fillRect(0,0,w,h); specks(q,w,h,9000,.16,3); for(let k=0;k<14;k++){ q.fillStyle=`rgba(60,58,52,${Math.random()*.08})`; q.fillRect(Math.random()*w,0,2+Math.random()*10,h); } });
+      conc.wrapS=conc.wrapT=THREE.RepeatWrapping;
+      const concM=new THREE.MeshStandardMaterial({map:conc,color:0xd8d6cf,roughness:.92,metalness:0});
+      const pillarM=new THREE.MeshStandardMaterial({map:conc,color:0xbfc3c6,roughness:.75,metalness:.15});
+      G.traverse(o=>{ if(o.isMesh){ const tall=o.geometry.boundingBox||(o.geometry.computeBoundingBox(),o.geometry.boundingBox); o.material=(tall.max.y-tall.min.y)>40?pillarM:concM; } });
+      g.add(G); N.bridge=G;
+      const am=asphaltMat(); am.polygonOffset=true; am.polygonOffsetFactor=-3; am.polygonOffsetUnits=-6;
+      const lanes=[], dashes=[];
+      for(const sd of [-1,1]){
+        const geo=new THREE.PlaneGeometry(8.4,LEN,1,Math.ceil(LEN/40)).rotateX(-Math.PI/2), uv=geo.attributes.uv; for(let k=0;k<uv.count;k++) uv.setXY(k,uv.getX(k)*.84,uv.getY(k)*LEN/10);
+        const m=new THREE.Mesh(geo,am); m.position.set(bx+sd*7,DECK+.03,zr1+LEN/2); m.receiveShadow=true; g.add(m);
+        lanes.push([bx+sd*3.25,zr1+LEN/2,.18,LEN],[bx+sd*10.75,zr1+LEN/2,.18,LEN]);
+        for(let z=zr1+6; z<zd1-6; z+=12) dashes.push([bx+sd*7,z,.16,4]);
+      }
+      const lm=quads([...lanes,...dashes],markMat,DECK+.05); g.add(lm);
+      // markings on the ramps too
+      const rl=[]; for(const [za,zb,ya,yb] of [[zs,zr1,y0,DECK],[zd1,zs1,DECK,.8]]) for(let z=za+4; z<zb-4; z+=12){ const t=(z-za)/(zb-za); rl.push([bx,z,.16,4,ya+(yb-ya)*t]); }
+      const rq=quads(rl.map(r=>r.slice(0,4)),markMat,0); const mm=new THREE.Matrix4(); rl.forEach((r,k)=>{ rq.getMatrixAt(k,mm); mm.elements[13]=r[4]+.06; rq.setMatrixAt(k,mm); }); g.add(rq);
     }catch(err){ console.warn('bridge',err); }
     // downtown: a real little city model, scaled up and made drivable by rasterising it into a 1 m grid
     try{
@@ -853,7 +894,8 @@ function applyCheapWorld(){
   if(h){ cheapHemi.color.copy(h.hor).multiplyScalar(1/Math.max(.05,Math.max(h.hor.r,h.hor.g,h.hor.b))); }
 }
 const worlds={};
-async function ensureWorld(key){ const L=LOCS[key]; if(!worlds[key]){ worlds[key]=await L.build(); scene.add(worlds[key].group); const s=worlds[key].spawn; L.spawn=[s[0],0,s[1]]; L.spawnH=s[2]||0; } return worlds[key]; }
+const worldBuilds={};
+async function ensureWorld(key){ const L=LOCS[key]; if(!worlds[key]){ const w=await (worldBuilds[key]||(worldBuilds[key]=L.build())); if(worlds[key]) return worlds[key]; worlds[key]=w; scene.add(worlds[key].group); const s=worlds[key].spawn; L.spawn=[s[0],0,s[1]]; L.spawnH=s[2]||0; } return worlds[key]; }
 function horizonColor(tex){ const {data,width,height}=tex.image, H=THREE.DataUtils.fromHalfFloat; const y=Math.floor(height*.5)-2; let r=0,g=0,b=0;
   for(let x=0;x<width;x++){ const k=(y*width+x)*4; r+=H(data[k]); g+=H(data[k+1]); b+=H(data[k+2]); } const c=new THREE.Color(r/width,g/width,b/width); const m=Math.max(c.r,c.g,c.b); if(m>1.2) c.multiplyScalar(1.2/m); return c; }
 
@@ -1774,22 +1816,31 @@ function cloneFrom(SRC,color,paintKeepMap){
 }
 const lifeRand=a=>a[Math.floor(Math.random()*a.length)];
 function lifeGrid(){ const W=worlds[locKey]; if(!(W&&W.grid&&W.grid.pave)) return null;
-  // footpath = road surface beside the driving lanes (pavements and kerb strips)
-  const G=W.grid; if(!G.walk){ G.walk=new Uint8Array(G.h1.length); for(let i=0;i<G.h1.length;i++){ const h=G.h1[i]; if(h===h && h<1.3 && !G.lane[i]) G.walk[i]=1; } }
+  if(!W.lifeM){
+    const G=W.grid, d=W.north&&W.north.down;
+    // main city: lanes, and the footpath = road surface beside the lanes (pavements and kerb strips)
+    const walk=new Uint8Array(G.h1.length); for(let i=0;i<G.h1.length;i++){ const h=G.h1[i]; if(h===h && h<1.3 && !G.lane[i]) walk[i]=1; }
+    // downtown: streets and pavements from its own grid
+    const dk=(x,z)=>{ if(!d) return -1; const ix=Math.floor(x-d.ox-d.dx0), iz=Math.floor(z-d.oz-d.dz0); return (ix<0||iz<0||ix>=d.DW||iz>=d.DH)?-1:iz*d.DW+ix; };
+    const dRoad=k=>k>=0&&d.road[k]&&d.top[k]<=d.gnd[k]+1.2&&d.gnd[k]+d.oy<1.6;
+    const dWalk=k=>k>=0&&!d.road[k]&&d.gnd[k]===d.gnd[k]&&d.top[k]<=d.gnd[k]+1.2&&d.gnd[k]+d.oy<1.9&&d.gnd[k]+d.oy>.3;
+    const mk=(mainMask,dTest)=>{ const pts=[];
+      for(let i=0;i<mainMask.length;i++) if(mainMask[i] && G.h1[i]<1.3 && G.h2[i]!==G.h2[i]) pts.push(G.x0+(i%G.GW)+.5, G.z0+Math.floor(i/G.GW)+.5);
+      if(d) for(let iz=0;iz<d.DH;iz+=2) for(let ix=0;ix<d.DW;ix+=2){ const k=iz*d.DW+ix; if(dTest(k)) pts.push(d.dx0+ix+.5+d.ox, d.dz0+iz+.5+d.oz); }
+      return { pts:new Float32Array(pts), at:(x,z)=>{ const i=G.cell(x,z); if(i>=0 && mainMask[i]) return true; return d?dTest(dk(x,z)):false; } }; };
+    W.lifeM={lane:mk(G.lane,dRoad), walk:mk(walk,dWalk)};
+  }
   return W; }
-// random cell of a mask at 60..180 m from the player, preferably behind the camera
-const lifeLists=new WeakMap();
-function lifeSpot(W,mask,rMin,rMax){
-  const G=W.grid, p=player; let L=lifeLists.get(mask);
-  if(!L){ L=[]; for(let i=0;i<mask.length;i++) if(mask[i] && G.h1[i]<1.3 && G.h2[i]!==G.h2[i]) L.push(i); lifeLists.set(mask,L); }
-  if(!L.length) return null;
+// random point of a mask at rMin..rMax m from the player, preferably behind the camera
+function lifeSpot(W,M,rMin,rMax){
+  const L=M.pts, n=L.length/2, p=player; if(!n) return null;
   const fx=Math.sin(p.h), fz=Math.cos(p.h); let fallback=null;
-  for(let t=0;t<400;t++){ const i=L[Math.floor(Math.random()*L.length)], x=G.x0+(i%G.GW)+.5, z=G.z0+Math.floor(i/G.GW)+.5, d=Math.hypot(x-p.x,z-p.z);
+  for(let t=0;t<500;t++){ const i=Math.floor(Math.random()*n), x=L[i*2], z=L[i*2+1], d=Math.hypot(x-p.x,z-p.z);
     if(d<rMin||d>rMax) continue; if((x-p.x)*fx+(z-p.z)*fz<0) return {x,z}; if(!fallback) fallback={x,z}; }
   return fallback;
 }
-// how far one can go along heading `an` staying on cells of `mask`
-function lifeRun(W,mask,x,z,an,max){ const G=W.grid, sx=Math.sin(an), sz=Math.cos(an); let d=1; for(;d<max;d++){ const i=G.cell(x+sx*d,z+sz*d); if(i<0||!mask[i]) break; } return d; }
+// how far one can go along heading `an` staying on the mask
+function lifeRun(W,M,x,z,an,max){ const sx=Math.sin(an), sz=Math.cos(an); let d=1; for(;d<max;d++){ if(!M.at(x+sx*d,z+sz*d)) break; } return d; }
 function bestHeading(W,mask,x,z,h,span,max,bias){
   let bh=h, bd=-1e9;
   for(let k=-span;k<=span;k++){ const an=h+k*.12, d=lifeRun(W,mask,x,z,an,max)-Math.abs(k)*(bias||.5); if(d>bd){ bd=d; bh=an; } }
@@ -1801,17 +1852,17 @@ async function spawnTraffic(){
   const W=lifeGrid(); if(!W) return;
   const want=quality==='min'?4:7;
   while(LIFE.on && LIFE.cars.length<want){
-    const s=lifeSpot(W,W.grid.lane,60,200); if(!s) return;
+    const s=lifeSpot(W,W.lifeM.lane,60,200); if(!s) return;
     const key=lifeRand(TRAFFIC_KEYS), SRC=await ensureLod(key); if(!LIFE.on) return; if(!SRC) continue;
     const c=cloneFrom(SRC,lifeRand(TRAFFIC_COLORS),!!CARS[key].paintKeepMap);
-    const h=bestHeading(W,W.grid.lane,s.x,s.z,Math.random()*6.28,26,40,0).h;
+    const h=bestHeading(W,W.lifeM.lane,s.x,s.z,Math.random()*6.28,26,40,0).h;
     const a=Object.assign({key,x:s.x,z:s.z,h,v:0,steer:0,y:W.height(s.x,s.z,1.5),traffic:true,stuck:0,cruise:8+Math.random()*5,turn:0,plan:0},c);
     a.root.position.set(a.x,a.y-curH,a.z); a.root.rotation.y=h; agents.push(a); LIFE.cars.push(a);
   }
 }
 function removeTraffic(a){ scene.remove(a.root); for(const m of a.mats) m.dispose(); const i=agents.indexOf(a); if(i>=0) agents.splice(i,1); LIFE.cars.splice(LIFE.cars.indexOf(a),1); }
 function updateTraffic(dt){
-  const W=lifeGrid(); if(!W) return; const G=W.grid, p=player, lane=G.lane;
+  const W=lifeGrid(); if(!W) return; const p=player, lane=W.lifeM.lane;
   for(const a of [...LIFE.cars]){
     const dp=Math.hypot(a.x-p.x,a.z-p.z);
     if(dp>260 || a.stuck>6){ removeTraffic(a); continue; }
@@ -1820,8 +1871,8 @@ function updateTraffic(dt){
       // follow the street, keeping to the right half of it
       const b=bestHeading(W,lane,a.x,a.z,a.h+a.turn,8,45,.6);
       const rx=-Math.cos(b.h), rz=Math.sin(b.h); let er=0, el=0;   // (rx,rz) points to the driver's right
-      while(er<12 && (()=>{ const i=G.cell(a.x+rx*(er+1),a.z+rz*(er+1)); return i>=0&&lane[i]; })()) er++;
-      while(el<12 && (()=>{ const i=G.cell(a.x-rx*(el+1),a.z-rz*(el+1)); return i>=0&&lane[i]; })()) el++;
+      while(er<12 && lane.at(a.x+rx*(er+1),a.z+rz*(er+1))) er++;
+      while(el<12 && lane.at(a.x-rx*(el+1),a.z-rz*(el+1))) el++;
       const off=er-Math.min(3.4,(er+el)/4);           // >0: too far from the right edge -> move right
       a.th=b.h-clamp(off*.07,-.35,.35); a.room=b.d;
       if(Math.random()<.04) a.turn=(Math.random()-.5)*1.6; else a.turn*=.6;     // occasional turns at junctions
@@ -1854,10 +1905,10 @@ const SKINS=['#f1c9a5','#d9a37a','#b5794f','#8a5a3b','#e8b896'];
 function spawnPeds(){
   const W=lifeGrid(); if(!W) return; const want=quality==='min'?16:28;
   while(LIFE.peds.length<want){
-    const s=lifeSpot(W,W.grid.walk,25,140); if(!s) return;
+    const s=lifeSpot(W,W.lifeM.walk,25,140); if(!s) return;
     const q={x:s.x,z:s.z,h:Math.random()*6.28,v:1+Math.random()*.6,ph:Math.random()*6,down:0,dvx:0,dvz:0,plan:0,
       shirt:new THREE.Color(lifeRand(SHIRTS)), pants:new THREE.Color(lifeRand(PANTS)), skin:new THREE.Color(lifeRand(SKINS)), scale:.92+Math.random()*.16};
-    q.h=bestHeading(W,W.grid.walk,q.x,q.z,q.h,26,20,0).h; LIFE.peds.push(q);
+    q.h=bestHeading(W,W.lifeM.walk,q.x,q.z,q.h,26,20,0).h; LIFE.peds.push(q);
   }
 }
 const _pm=new THREE.Matrix4(), _pl=new THREE.Matrix4(), _pq=new THREE.Quaternion(), _pe=new THREE.Euler(), _pv=new THREE.Vector3(), _ps=new THREE.Vector3();
@@ -1870,7 +1921,7 @@ function updatePeds(dt){
     if(q.down){ q.down+=dt; q.x+=q.dvx*dt; q.z+=q.dvz*dt; const f=Math.exp(-dt*3); q.dvx*=f; q.dvz*=f; }
     else {
       q.plan-=dt;
-      if(q.plan<=0){ q.plan=.4+Math.random()*.4; const b=bestHeading(W,G.walk,q.x,q.z,q.h,6,8,.4); q.th=b.d<2?q.h+Math.PI:b.h; }
+      if(q.plan<=0){ q.plan=.4+Math.random()*.4; const b=bestHeading(W,W.lifeM.walk,q.x,q.z,q.h,6,8,.4); q.th=b.d<2?q.h+Math.PI:b.h; }
       // step aside when a car comes straight at them
       if(dp<9 && sp>3){ const dx=q.x-p.x, dz=q.z-p.z, fx=Math.sin(p.h), fz=Math.cos(p.h), f=dx*fx+dz*fz, l=dx*fz-dz*fx; if(f>0 && Math.abs(l)<2.2){ q.th=p.h+(l>0?-Math.PI/2:Math.PI/2); q.run=1.5; } }
       const diff=wrapA(q.th-q.h); q.h+=clamp(diff,-4*dt,4*dt);
@@ -2027,7 +2078,7 @@ function updateFoot(dt){
 
 /* ================= garage ================= */
 let tab=store.get('tab','paint');
-const TABS=[['paint','Rang'],['paint2','2-rang'],['rims','Disklar'],['tint','Oyna'],['susp','Podveska'],['engine','Dvigatel'],['tires','Shinalar'],['neon','Neon'],['loc','Xarita']];
+const TABS=[['paint','Rang'],['paint2','2-rang'],['rims','Disklar'],['tint','Oyna'],['susp','Podveska'],['engine','Dvigatel'],['tires','Shinalar'],['neon','Neon']];
 const fmtH=v=>{ const cm=Math.round(v*100); return cm===0?'Standart':(cm>0?'+':'')+cm+' sm'; };
 function statOf(t){ const st=STAGE_MULT[t.engine]; const tire={street:1,sport:1.16,drift:.8}[t.tire];
   return {hp:Math.round(CAR.hp*st), top:Math.round(CAR.top*(1+.035*t.engine)), acc:clamp(.55+t.engine*.12,0,1), grip:clamp(CAR.grip*tire*(1-t.height*1.4)/17,0,1)}; }
@@ -2042,7 +2093,14 @@ async function switchCar(d){
 }
 $('#prevCar').addEventListener('click',e=>{ e.stopPropagation(); switchCar(-1); });
 $('#nextCar').addEventListener('click',e=>{ e.stopPropagation(); switchCar(1); });
+let gstep=1;
+window.goStep=n=>goStep(n);
+function goStep(n){ gstep=n; for(const k of [1,2,3]) $('#step'+k).hidden=k!==n; renderGarage(); $('#panel').scrollTop=0; }
 function renderGarage(){
+  document.querySelectorAll('#steps button').forEach(b=>b.setAttribute('aria-current',+b.dataset.step===gstep?'step':'false'));
+  const need=MODES[mode].loc;
+  $('#mapRow').innerHTML=Object.entries(LOCS).map(([k,v])=>`<button class="chip" data-loc="${k}" aria-pressed="${k===locKey}" ${need&&need!==k?'disabled':''}>${v.label}<small>${v.size||'Kichik maydon'}</small></button>`).join('');
+  $('#mapNote').textContent=need?`${MODES[mode].label} rejimi «${LOCS[need].label}» xaritasida o'ynaladi.`:'Erkin rejimda istalgan xaritani tanlang.';
   const keys=Object.keys(CARS);
   $('#carIdx').textContent=(keys.indexOf(carKey)+1)+' / '+keys.length; $('#carName').textContent=CAR.name; $('#carDesc').textContent=CAR.desc; $('#carCredit').textContent=CAR.credit;
   const st=statOf(tune), base=statOf(defaultTune());
@@ -2065,7 +2123,8 @@ function renderGarage(){
 }
 $('#panel').addEventListener('click',async e=>{
   const el=e.target.closest('button'); if(!el||el.id==='goBtn'||el.classList.contains('arrow')) return; const ds=el.dataset;
-  if(ds.mode){ mode=ds.mode; store.set('mode',mode); }
+  if(ds.step){ goStep(+ds.step); return; }
+  if(ds.mode){ mode=ds.mode; store.set('mode',mode); if(MODES[mode].loc && MODES[mode].loc!==locKey){ renderGarage(); await switchLoc(MODES[mode].loc); } }
   else if(ds.tab){ tab=ds.tab; store.set('tab',tab); }
   else if(ds.paint!==undefined) tune.color=ds.paint||null;
   else if(ds.paint2!==undefined) tune.color2=ds.paint2||null;
@@ -2124,11 +2183,12 @@ function toGarage(){
   if(camMode===1){ camMode=0; $('#camLbl').textContent=CAM_LABELS[0]; }
   car.glass.opacity=.25+tune.tint*.65;
   camera.fov=40; camera.updateProjectionMatrix();
-  show('#garage',true); show('#hud',false); show('#pause',false); renderGarage(); checkRotate();
+  show('#garage',true); show('#hud',false); show('#pause',false); if(tab==='loc') tab='paint'; goStep(1); checkRotate();
 }
 async function startDrive(){
   Snd.init();
   const need=MODES[mode].loc;
+  await locQueue;
   if(need && need!==locKey){ toast('Xarita yuklanmoqda…'); try{ await loadLocation(need); }catch(e){ toast("Xaritani yuklab bo'lmadi"); return; } }
   state='drive'; camera.clearViewOffset();
   if(mode==='race'||mode==='police') await ensureLod(carKey);

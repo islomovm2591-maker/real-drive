@@ -1,6 +1,6 @@
 // Offline support. The page itself is always fetched from the network first (so a new version shows
 // up on the next launch); the big model files are served from the cache after the first visit.
-const CACHE = 'real-drive-v18';
+const CACHE = 'real-drive-v19';
 const CORE = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(CORE.map(u => fetch(u, { cache: 'reload' }).then(r => r.ok && c.put(u, r)).catch(() => {})))).then(() => self.skipWaiting()));
