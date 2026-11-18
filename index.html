@@ -289,7 +289,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
     <button class="mbtn primary" id="mResume">Davom etish</button>
     <button class="mbtn" id="mReset">Qayta boshlash</button>
     <button class="mbtn" id="mGarage">Garajga qaytish</button>
-    <p class="credit"><b>Versiya 21</b> (joystik, o'ng tomonlama harakat). 3D modellar mualliflari garajda ko'rsatilgan. Qahramon: "Business man - low polygon game character", manoeldarochadeoliveira, Sketchfab (CC BY 4.0). Shahar yo'llari: "City Infrastructure Base Map", PropShop™, Sketchfab (CC BY 4.0). Osmon panoramalari: Poly Haven (CC0).</p>
+    <p class="credit"><b>Versiya 22</b> (ko'prik va markaziy tuman). 3D modellar mualliflari garajda ko'rsatilgan. Qahramon: "Business man - low polygon game character", manoeldarochadeoliveira, Sketchfab (CC BY 4.0). Shahar yo'llari: "City Infrastructure Base Map", PropShop™, Sketchfab (CC BY 4.0). Ko'prik: "Most", Nikitos &amp; 3130, Sketchfab (CC BY 4.0). Markaziy tuman: "City", Voxelatio, Sketchfab (CC BY 4.0). Osmon panoramalari: Poly Haven (CC0).</p>
   </div>
 </div>
 
@@ -352,7 +352,7 @@ const camera=new THREE.PerspectiveCamera(40,1,.2,3000);
 
 /* ================= locations (real HDRI photographs projected onto the ground) ================= */
 const LOCS={
-  city:{label:'Shahar', type:'open', file:'assets/quarry_01_1k.hdr', exp:1.0, spawn:[0,0,0], build:()=>buildCity(), size:"2,5 km · aerodrom, maydon"},
+  city:{label:'Shahar', type:'open', file:'assets/quarry_01_1k.hdr', exp:1.0, spawn:[0,0,0], build:()=>buildCity(), size:"4 km · ko'prik, markaz, aerodrom"},
   runway:{label:'Aerodrom', type:'open', file:'assets/blouberg_sunrise_2_1k.hdr', exp:1.0, spawn:[0,0,-900], build:()=>buildRunway(), size:'2 km'},
   circuit:{label:'Trassa', type:'open', file:'assets/quarry_01_1k.hdr', exp:1.0, spawn:[0,0,0], build:()=>buildCircuit(), size:'3 km'},
   quarry:{label:'Karyer', file:'assets/quarry_01_1k.hdr', h:11, R:150, exp:1.0, spawn:[0,0,-20]},
@@ -583,11 +583,12 @@ async function buildCity(){
         if(w0<-E||w1<-E||w2<-E) continue; put(iz*GW+ix, w0*a.y+w1*b.y+w2*c.y); if(isLane) lane[iz*GW+ix]=1; else if(isPave) pave[iz*GW+ix]=1; }
     } });
   const cell=(x,z)=>{ const ix=Math.floor(x-x0), iz=Math.floor(z-z0); return (ix<0||iz<0||ix>=GW||iz>=GH)?-1:iz*GW+ix; };
+  let extHF=()=>undefined, extRoadF=()=>false, extBlockF=()=>undefined;
   let inLinkF=()=>null, linkHF=()=>0, zoneRoadF=()=>false;
-  const sample=(x,z,y)=>{ const L=inLinkF(x,z); if(L){ const i0=cell(x,z); if(i0<0||h1[i0]!==h1[i0]) return linkHF(L,x); }
+  const sample=(x,z,y)=>{ const ex=extHF(x,z,y); if(ex!==undefined) return ex; const L=inLinkF(x,z); if(L){ const i0=cell(x,z); if(i0<0||h1[i0]!==h1[i0]) return linkHF(L,x); }
     const i=cell(x,z); if(i<0) return 0; const lo=h1[i]; if(lo!==lo||lo>y+1.6) return 0; const hi=h2[i];
     return (hi===hi && hi<=y+1.6 && Math.abs(hi-y)<Math.abs(lo-y))?hi:lo; };
-  const isRoad=(x,z,y)=>{ const i=cell(x,z); if(i>=0){ const lo=h1[i]; if(lo===lo && lo<=y+1.6) return true; } return zoneRoadF(x,z); };
+  const isRoad=(x,z,y)=>{ if(extRoadF(x,z)) return true; const i=cell(x,z); if(i>=0){ const lo=h1[i]; if(lo===lo && lo<=y+1.6) return true; } return zoneRoadF(x,z); };
   // summed-area table of road cells -> fast "is this lot free / near a street" tests
   const findEnd=(side)=>{ let best=null, bs=-1e9;
     for(let iz=40; iz<GH-40; iz+=2) for(let ix=0; ix<GW; ix+=2){ const i=iz*GW+ix; if(!lane[i]||h1[i]>1.3||h2[i]===h2[i]) continue;
@@ -595,8 +596,13 @@ async function buildCity(){
     if(!best) return null;   // centre the link road on the street at that point
     let za=best.z, zb=best.z; while(isRoad(best.x,za-1,1.5)&&best.z-za<20) za--; while(isRoad(best.x,zb+1,1.5)&&zb-best.z<20) zb++; best.z=(za+zb)/2; return best; };
   const eastEnd=findEnd(1), westEnd=findEnd(-1);
+  const northEnd=(()=>{ let best=null, bs=-1e9, cx=x0+GW/2;
+    for(let iz=GH-200; iz<GH-2; iz+=2) for(let ix=40; ix<GW-40; ix+=2){ const i=iz*GW+ix; if(iz<0||!lane[i]||h1[i]>1.3||h2[i]===h2[i]) continue;
+      const x=x0+ix+.5, z=z0+iz+.5, sc=z-.35*Math.abs(x-cx); if(sc>bs){ bs=sc; best={x,z,y:h1[i]}; } }
+    if(!best) return null; let xa=best.x, xb=best.x; while(isRoad(xa-1,best.z,1.5)&&best.x-xa<20) xa--; while(isRoad(xb+1,best.z,1.5)&&xb-best.x<20) xb++; best.x=(xa+xb)/2; return best; })();
   const reserved=new Uint8Array(GW*GH);   // corridor of the link roads: no buildings there
   for(const [e,side] of [[eastEnd,1],[westEnd,-1]]){ if(!e) continue; for(let iz=Math.floor(e.z-z0-10); iz<=Math.ceil(e.z-z0+10); iz++) for(let ix=0; ix<GW; ix++){ const x=x0+ix+.5; if(iz<0||iz>=GH||(side>0?x<e.x-2:x>e.x+2)) continue; reserved[iz*GW+ix]=1; } }
+  if(northEnd) for(let iz=Math.max(0,Math.floor(northEnd.z-z0-6)); iz<GH; iz++) for(let ix=Math.max(0,Math.floor(northEnd.x-x0-15)); ix<=Math.min(GW-1,Math.ceil(northEnd.x-x0+15)); ix++) reserved[iz*GW+ix]=1;
   const SW=GW+1, sat=new Int32Array(SW*(GH+1));
   for(let iz=0;iz<GH;iz++){ let row=0; for(let ix=0;ix<GW;ix++){ row+=(h1[iz*GW+ix]===h1[iz*GW+ix]||reserved[iz*GW+ix])?1:0; sat[(iz+1)*SW+ix+1]=sat[iz*SW+ix+1]+row; } }
   const cnt=(xa,za,xb,zb)=>{ xa=clamp(Math.floor(xa-x0),0,GW); xb=clamp(Math.ceil(xb-x0),0,GW); za=clamp(Math.floor(za-z0),0,GH); zb=clamp(Math.ceil(zb-z0),0,GH); return sat[zb*SW+xb]-sat[za*SW+xb]-sat[zb*SW+xa]+sat[za*SW+xa]; };
@@ -681,12 +687,93 @@ async function buildCity(){
   const zoneRoad=(x,z)=>{ if(inLink(x,z)) return true;
     if(air && air.onRoad(x-air.ox,z-air.oz)) return true;
     if(plaza && Math.abs(x-plaza.x)<plaza.S/2 && Math.abs(z-plaza.z)<plaza.S/2) return true; return false; };
-  const bx0=Math.min(x0+3,plaza?plaza.x-plaza.S/2-40:1e9), bx1=Math.max(x0+GW-3,air?air.ox+480:-1e9), bz0=Math.min(z0+3,air?air.oz-1080:1e9), bz1=Math.max(z0+GH-3,air?air.oz+1080:-1e9);
+  // ---- north: ramp up, the 1.6 km bridge over a river, ramp down, and the downtown district beyond it
+  let north=null; const coreKids=[...g.children];   // everything south of the river
+  if(northEnd){
+    const bx=northEnd.x, zs=northEnd.z+2, RAMP=130, DECK=8.0, LEN=1600.1, y0=northEnd.y;
+    const zr1=zs+RAMP, zd1=zr1+LEN, zs1=zd1+RAMP, zdt=zs1+18;
+    const N={bx,zs,zr1,zd1,zs1,zdt,DECK,y0,RAMP};
+    // own ramps and link road (the bridge model has only the level deck)
+    const ramp=(za,zb,ya,yb,w)=>{ const len=zb-za, gR=new THREE.PlaneGeometry(w,len,1,Math.ceil(len/10)).rotateX(-Math.PI/2), pos=gR.attributes.position, uv=gR.attributes.uv;
+      for(let k=0;k<pos.count;k++){ const zz=pos.getZ(k)+(za+zb)/2, t=(zz-za)/len; pos.setY(k,ya+(yb-ya)*clamp(t,0,1)+.02); uv.setXY(k,uv.getX(k)*w/10,uv.getY(k)*len/10); }
+      gR.computeVertexNormals(); const m=new THREE.Mesh(gR,asphaltMat()); m.position.set(bx,0,(za+zb)/2); m.receiveShadow=true; g.add(m);
+      if(Math.abs(yb-ya)>.5){ // side walls of the ramp
+        const wm=new THREE.MeshStandardMaterial({color:0xb9b6ae,roughness:.9});
+        for(const sd of [-1,1]){ const gw=new THREE.BoxGeometry(.6,1,len,1,1,Math.ceil(len/10)), pw=gw.attributes.position;
+          for(let k=0;k<pw.count;k++){ const zz=pw.getZ(k)+(za+zb)/2, t=clamp((zz-za)/len,0,1), top=ya+(yb-ya)*t+1.1; pw.setY(k,pw.getY(k)>0?top:-.2); }
+          gw.computeVertexNormals(); const wmesh=new THREE.Mesh(gw,wm); wmesh.position.set(bx+sd*(w/2+.3),0,(za+zb)/2); wmesh.castShadow=true; g.add(wmesh); } } };
+    ramp(zs,zr1,y0,DECK,24); ramp(zd1,zs1,DECK,.8,24); ramp(zs1,zdt+2,.8,.8,14);
+    // river under the bridge
+    const water=new THREE.Mesh(new THREE.PlaneGeometry(2600,zs1-zr1-40).rotateX(-Math.PI/2), new THREE.MeshStandardMaterial({color:0x2a5872,roughness:.12,metalness:.15,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2}));
+    water.position.set(bx,-.03,(zr1+zs1)/2); water.receiveShadow=true; g.add(water); N.river={x0:bx-1300,x1:bx+1300,z0:zr1+20-RAMP*.3,z1:zs1-20+RAMP*.3};
+    // the bridge model (units: cm under a tiny Sketchfab root scale) -> metres, deck along +Z centred on bx
+    try{
+      const bu=await assetURL('assets/bridge.glb','glTF'); const bgl=await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(bu); URL.revokeObjectURL(bu);
+      const inner=bgl.scene; inner.updateMatrixWorld(true); const top=inner.children[0], e=top.matrixWorld.elements, s=Math.hypot(e[0],e[1],e[2]);
+      const G=new THREE.Group(); G.add(inner); inner.position.set(-e[12],-e[13],-e[14]); G.scale.setScalar(.01/s); G.rotation.y=Math.PI; G.position.set(bx+31,DECK-8.0,zr1);
+      inner.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=true; } });
+      G.updateMatrixWorld(true); mergeUnder(G,new Set()); g.add(G); N.bridge=G;
+    }catch(err){ console.warn('bridge',err); }
+    // downtown: a real little city model, scaled up and made drivable by rasterising it into a 1 m grid
+    try{
+      const du=await assetURL('assets/downtown.glb','glTF'); const dgl=await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(du); URL.revokeObjectURL(du);
+      const D=dgl.scene, SC=9; D.scale.setScalar(SC); D.updateMatrixWorld(true);
+      const bb=new THREE.Box3().setFromObject(D), dx0=Math.floor(bb.min.x), dz0=Math.floor(bb.min.z), DW=Math.ceil(bb.max.x)-dx0+1, DH=Math.ceil(bb.max.z)-dz0+1;
+      const gnd=new Float32Array(DW*DH).fill(NaN), top=new Float32Array(DW*DH).fill(-1e9), road=new Uint8Array(DW*DH);
+      const A=new THREE.Vector3(), B=new THREE.Vector3(), Cc=new THREE.Vector3();
+      D.traverse(o=>{ if(!o.isMesh) return; const pos=o.geometry.attributes.position, idx=o.geometry.index, Mw=o.matrixWorld, isStreet=/CALLE/i.test(o.material.name||'');
+        const n=idx?idx.count:pos.count, gi=k=>idx?idx.getX(k):k;
+        for(let t=0;t<n;t+=3){ A.fromBufferAttribute(pos,gi(t)).applyMatrix4(Mw); B.fromBufferAttribute(pos,gi(t+1)).applyMatrix4(Mw); Cc.fromBufferAttribute(pos,gi(t+2)).applyMatrix4(Mw);
+          const ux=B.x-A.x,uy=B.y-A.y,uz=B.z-A.z,vx=Cc.x-A.x,vy=Cc.y-A.y,vz=Cc.z-A.z, ny=uz*vx-ux*vz, nl=Math.hypot(uy*vz-uz*vy,ny,ux*vy-uy*vx); if(nl<1e-9) continue;
+          const up=ny/nl>.6, ns=Math.min(300,Math.max(1,Math.ceil(Math.max(Math.hypot(ux,uy,uz),Math.hypot(vx,vy,vz))/.8)));
+          for(let i=0;i<=ns;i++) for(let j=0;j<=ns-i;j++){ const u=i/ns, v=j/ns, x=A.x+ux*u+vx*v, y=A.y+uy*u+vy*v, z=A.z+uz*u+vz*v;
+            const ix=Math.floor(x-dx0), iz=Math.floor(z-dz0); if(ix<0||iz<0||ix>=DW||iz>=DH) continue; const k=iz*DW+ix;
+            if(y>top[k]) top[k]=y; if(up){ const gq=gnd[k]; if(gq!==gq||y<gq) gnd[k]=y; if(isStreet) road[k]=1; } } } });
+      // pick a north-south street on the south edge and line it up with the bridge axis
+      let bestIx=-1, bestRun=0; const midX=(bb.min.x+bb.max.x)/2;
+      for(let ix=8; ix<DW-8; ix++){ let iz=0; while(iz<40 && !road[iz*DW+ix]) iz++; if(iz>=40) continue;
+        let run=0, miss=0; for(; iz<DH; iz++){ if(road[iz*DW+ix]){ run++; miss=0; } else if(++miss>4) break; }
+        // prefer long straight streets near the middle, away from the outer ring road
+        const sc=run-Math.abs(dx0+ix-midX)*.3; if(run>120 && sc>bestRun){ bestRun=sc; bestIx=ix; } }
+      if(bestIx<0) bestIx=Math.floor(DW/2);
+      let row=0; while(row<40 && !road[row*DW+bestIx]) row++; row+=20;   // measure the street width a little way in
+      let a1=bestIx, a2=bestIx; while(a1>0&&road[row*DW+a1-1]) a1--; while(a2<DW-1&&road[row*DW+a2+1]) a2++;   // centre on that street
+      const sx=dx0+(a1+a2)/2+.5, sk=row*DW+Math.round((a1+a2)/2), sy=gnd[sk]===gnd[sk]?gnd[sk]:0;
+      const ox=bx-sx, oz=zdt-dz0, oy=.8-sy; D.position.set(ox,oy,oz);
+      D.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+      D.updateMatrixWorld(true); mergeUnder(D,new Set()); g.add(D);
+      N.down={D,dx0,dz0,DW,DH,gnd,top,road,ox,oy,oz, x0:dx0+ox, x1:dx0+DW+ox, z0:dz0+oz, z1:dz0+DH+oz};
+    }catch(err){ console.warn('downtown',err); }
+    north=N;
+    const dCell=(x,z)=>{ const d=N.down; if(!d) return -1; const ix=Math.floor(x-d.ox-d.dx0), iz=Math.floor(z-d.oz-d.dz0); return (ix<0||iz<0||ix>=d.DW||iz>=d.DH)?-1:iz*d.DW+ix; };
+    // analytic heights for ramps, deck and link; grid for downtown. undefined = not in the north district
+    extHF=(x,z,y)=>{ const dx=Math.abs(x-bx); let h;
+      if(z>=zs && z<zr1 && dx<=12.5) h=y0+(DECK-y0)*(z-zs)/RAMP;
+      else if(z>=zr1 && z<zd1 && dx<=15) h=DECK;
+      else if(z>=zd1 && z<zs1 && dx<=12.5) h=DECK+(.8-DECK)*(z-zd1)/RAMP;
+      else if(z>=zs1 && z<zdt+2 && dx<=7.5) h=.8;
+      if(h!==undefined) return h>y+1.6?0:h;              // driving underneath: stay on the ground
+      const k=dCell(x,z); if(k>=0){ const gq=N.down.gnd[k]; return gq===gq?gq+N.down.oy:.8; }
+      return undefined; };
+    extRoadF=(x,z)=>{ const dx=Math.abs(x-bx);
+      if((z>=zs&&z<zr1&&dx<=12.5)||(z>=zr1&&z<zd1&&dx<=15)||(z>=zd1&&z<zs1&&dx<=12.5)||(z>=zs1&&z<zdt+2&&dx<=7.5)) return true;
+      const k=dCell(x,z); return k>=0 && N.down.gnd[k]===N.down.gnd[k]; };
+    extBlockF=(x,z,y)=>{ const dx=Math.abs(x-bx);
+      if(z>=zr1 && z<zd1 && y>DECK-2){ if(dx<15.5) return dx>11 || dx<3; }                   // bridge: outer barriers and median
+      if(((z>=zs&&z<zr1)||(z>=zd1&&z<zs1)) && y>1.4 && dx>12 && dx<13.5) return true;         // ramp side walls
+      if(y<2 && N.river && x>N.river.x0 && x<N.river.x1 && z>N.river.z0 && z<N.river.z1 && !(dx<12.5)) return true;   // river banks
+      const k=dCell(x,z); if(k>=0){ const d=N.down, gq=d.gnd[k], tp=d.top[k]; if(gq!==gq) return false; const gy=gq+d.oy, ty=tp+d.oy; return ty>gy+1.2 && ty>y+.5 && gy<y+1.3; }
+      return undefined; };
+    N.tick=(px,pz)=>{ const far=pz>zr1+1000; if(N.coreHidden!==far){ N.coreHidden=far; for(const o of coreKids) o.visible=!far; }
+      if(N.down){ const d=N.down, far=Math.max(d.x0-px,px-d.x1,d.z0-pz,pz-d.z1); d.D.visible=far<1100; } };
+  }
+  const nd=north&&north.down;
+  const bx0=Math.min(x0+3,plaza?plaza.x-plaza.S/2-40:1e9,nd?nd.x0+3:1e9), bx1=Math.max(x0+GW-3,air?air.ox+480:-1e9,nd?nd.x1-3:-1e9), bz0=Math.min(z0+3,air?air.oz-1080:1e9), bz1=Math.max(z0+GH-3,air?air.oz+1080:-1e9,nd?nd.z1-3:(north?north.zdt+10:-1e9));
   // wall lookup for the car at road height y: blocked if a span reaches above kerb height (y+0.5) and below the roof (y+1.3)
-  const blocked=(x,z,y)=>{ const i=cell(x,z); if(i<0) return false; const l1=wl1[i];
+  const blocked=(x,z,y)=>{ const eb=extBlockF(x,z,y); if(eb!==undefined) return eb; const i=cell(x,z); if(i<0) return false; const l1=wl1[i];
     if(l1===l1 && l1<y+1.3 && wh1[i]>y+.5) return true; const l2=wl2[i]; return l2===l2 && l2<y+1.3 && wh2[i]>y+.5; };
   inLinkF=inLink; linkHF=linkH; zoneRoadF=zoneRoad;
-  return { group:g, spawn:[sx,sz,sh], bound:1e5, buildings:rects.length, zones, links, blocked, wspans:{wl1,wh1,wl2,wh2,cell},
+  return { group:g, spawn:[sx,sz,sh], bound:1e5, buildings:rects.length, zones, links, blocked, north, wspans:{wl1,wh1,wl2,wh2,cell},
     cones:()=>air?air.cones().map(([x,z])=>[x+air.ox,z+air.oz]):[], grid:{cell,h1,h2,lane,pave,isRoad,x0,z0,GW,GH}, parkSpots:spots, pushOut, road:isRoad,
     height:sample, onRoad:(x,z)=>isRoad(x,z,curH),
     wall:(p)=>{
@@ -713,6 +800,7 @@ async function buildCity(){
 // roads with height: the world is shifted down under the car instead of lifting the car and the cameras
 function applyHeight(dt){
   const W=worlds[locKey], p=state==='drive'?player:{x:car.root.position.x,z:car.root.position.z,h:car.root.rotation.y};
+  if(W && W.north && W.north.tick) W.north.tick(p.x,p.z);
   if(W && W.height && W.group.visible){
     const k=Math.min(1,dt*10), fx=Math.sin(p.h), fz=Math.cos(p.h);
     curH+=(W.height(p.x,p.z,curH)-curH)*k;

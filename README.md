@@ -5,7 +5,7 @@ Brauzerda (telefon va kompyuterda) ishlaydigan realistik 3D mashina haydash o'yi
 ## Imkoniyatlar
 
 - **Real 3D mashina modellari**, salon ichi bilan birga: Concept R, Dodge Challenger LB, Ferrari F40 LB-Works, Mercedes-Benz E55 AMG va Porsche 911 GT3 R (garajda almashtiriladi)
-- **Katta xaritalar**: Shahar (1,3 km yo'l tarmog'i, chorrahalar, ko'priklar, 200 dan ortiq bino; sharqiy chekkasidan yo'l aerodromga, g'arbiy chekkasidan favvorali maydonga olib boradi), Aerodrom (2 km uchish yo'lagi, angarlar, drift maydoni) va Trassa (3 km poyga trassasi, davra vaqti va rekord)
+- **Katta xaritalar**: Shahar (1,3 km yo'l tarmog'i, chorrahalar, ko'priklar, 200 dan ortiq bino; sharqiy chekkasidan yo'l aerodromga, g'arbiy chekkasidan favvorali maydonga olib boradi; shimoldan 1,6 km uzunlikdagi ko'prik daryo ustidan markaziy tumanga o'tadi), Aerodrom (2 km uchish yo'lagi, angarlar, drift maydoni) va Trassa (3 km poyga trassasi, davra vaqti va rekord)
 - **Kichik joylar**: haqiqiy 360° fotosuratlar (HDRI) yerga proyeksiya qilingan: karyer, maydon va kechki shahar
 - **Tyuning**: asosiy rang va bo'yoq turi (metallik, yaltiroq, mat, sadaf), ikkinchi rang, disk rangi, tonirovka, podveska, dvigatel (Stage 1–3), shinalar, neon
 - **Haydash**: avtomat uzatmalar qutisi, qo'l tormozi bilan drift, drift ochkolari va rekord, shina izlari, uriladigan konuslar
@@ -38,4 +38,6 @@ Fayllarni lokal server orqali oching (masalan `npx serve .`), keyin brauzerda `i
 - Shahar yo'llari "City Infrastructure Base Map": PropShop™, [Sketchfab](https://sketchfab.com/3d-models/city-infrastructure-base-map-ee4a3074c579409ab65e68555845f1a8). Litsenziya: [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). O'yin uchun siqilgan; binolar o'yin tomonidan qo'shiladi.
 - Oddiy mashinalar: "Generic passenger car pack", Comrade1280, Sketchfab (CC BY 4.0). Har bir mashina alohida faylga ajratilgan va siqilgan.
 - Qahramon: "Business man - low polygon game character", manoeldarochadeoliveira, Sketchfab (CC BY 4.0). Teksturalari siqilgan.
+- Ko'prik "Most": Nikitos & 3130, Sketchfab (CC BY 4.0). Soddalashtirilgan va siqilgan; rampalar va daryo o'yin tomonidan qo'shiladi.
+- Markaziy tuman "City": Voxelatio, Sketchfab (CC BY 4.0). 9 baravar kattalashtirilgan, soddalashtirilgan va siqilgan.
 - HDRI panoramalar (quarry_01, royal_esplanade, venice_sunset, blouberg_sunrise_2): [Poly Haven](https://polyhaven.com), CC0. three.js misollar to'plami orqali olingan.
