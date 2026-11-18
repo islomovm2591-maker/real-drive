@@ -289,7 +289,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
     <button class="mbtn primary" id="mResume">Davom etish</button>
     <button class="mbtn" id="mReset">Qayta boshlash</button>
     <button class="mbtn" id="mGarage">Garajga qaytish</button>
-    <p class="credit">3D modellar mualliflari garajda ko'rsatilgan. Qahramon: "Business man - low polygon game character", manoeldarochadeoliveira, Sketchfab (CC BY 4.0). Shahar yo'llari: "City Infrastructure Base Map", PropShop™, Sketchfab (CC BY 4.0). Osmon panoramalari: Poly Haven (CC0).</p>
+    <p class="credit"><b>Versiya 21</b> (joystik, o'ng tomonlama harakat). 3D modellar mualliflari garajda ko'rsatilgan. Qahramon: "Business man - low polygon game character", manoeldarochadeoliveira, Sketchfab (CC BY 4.0). Shahar yo'llari: "City Infrastructure Base Map", PropShop™, Sketchfab (CC BY 4.0). Osmon panoramalari: Poly Haven (CC0).</p>
   </div>
 </div>
 
@@ -1731,11 +1731,11 @@ function updateTraffic(dt){
     if(a.plan<=0){ a.plan=.25;
       // follow the street, keeping to the right half of it
       const b=bestHeading(W,lane,a.x,a.z,a.h+a.turn,8,45,.6);
-      const rx=Math.cos(b.h), rz=-Math.sin(b.h); let er=0, el=0;
+      const rx=-Math.cos(b.h), rz=Math.sin(b.h); let er=0, el=0;   // (rx,rz) points to the driver's right
       while(er<12 && (()=>{ const i=G.cell(a.x+rx*(er+1),a.z+rz*(er+1)); return i>=0&&lane[i]; })()) er++;
       while(el<12 && (()=>{ const i=G.cell(a.x-rx*(el+1),a.z-rz*(el+1)); return i>=0&&lane[i]; })()) el++;
-      const off=er-Math.min(3.2,(er+el)/4);           // >0: too far left of the right lane
-      a.th=b.h+clamp(off*.06,-.35,.35); a.room=b.d;
+      const off=er-Math.min(3.4,(er+el)/4);           // >0: too far from the right edge -> move right
+      a.th=b.h-clamp(off*.07,-.35,.35); a.room=b.d;
       if(Math.random()<.04) a.turn=(Math.random()-.5)*1.6; else a.turn*=.6;     // occasional turns at junctions
     }
     // brake for the player and for other cars ahead
@@ -2169,6 +2169,6 @@ function frame(now){
 })();
 </script>
 
-<script>if('serviceWorker' in navigator) addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
+<script>if('serviceWorker' in navigator) addEventListener('load',()=>navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{}));</script>
 </body>
 </html>
