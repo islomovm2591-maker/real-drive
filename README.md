@@ -24,6 +24,7 @@ Brauzerda (telefon va kompyuterda) ishlaydigan realistik 3D mashina haydash o'yi
 | `Probel`: qo'l tormozi (drift) | QO'L TORMOZ |
 | `C`: kamera, `L`: faralar, `H`: signal | yuqoridagi tugmalar |
 | `R`: qayta boshlash, `Esc`: menyu | ⏸ |
+| O'yin pulti: chap stik rul/yurish, RT gaz, LT tormoz, A qo'l tormozi, Y tushish/o'tirish, X kamera, B signal | Joystik (⏸ → Boshqaruv) |
 
 ## Ishga tushirish
 

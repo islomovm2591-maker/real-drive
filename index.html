@@ -128,6 +128,11 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
 #touch{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:flex-end;
   padding:0 max(14px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px));pointer-events:none}
 .tgroup{display:flex;gap:12px;align-items:flex-end;pointer-events:auto}
+.joy{width:132px;height:132px;border-radius:50%;background:rgba(10,12,15,.42);border:1px solid rgba(255,255,255,.2);position:relative;pointer-events:auto;touch-action:none;
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);flex:none}
+.joyknob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:rgba(255,255,255,.32);border:1px solid rgba(255,255,255,.45);transition:transform .06s}
+.joy.on .joyknob{background:rgba(255,255,255,.5);transition:none}
+@media (max-height:420px){ .joy{width:112px;height:112px} }
 .tbtn{width:76px;height:76px;border-radius:20px;background:rgba(10,12,15,.5);border:1px solid rgba(255,255,255,.18);display:grid;place-items:center;
   backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);touch-action:none;transition:background .08s,transform .08s}
 .tbtn svg{width:28px;height:28px}
@@ -233,7 +238,8 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
     <div class="meta"><div id="gear">N</div><div class="rpm"><i id="rpmbar"></i></div></div>
   </div>
   <div id="touch" hidden>
-    <div class="tgroup">
+    <div id="joy" class="joy" hidden><div class="joyknob"></div></div>
+    <div class="tgroup" id="arrows">
       <button class="tbtn" data-k="left" aria-label="Chapga"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M15 5l-7 7 7 7"/></svg></button>
       <button class="tbtn" data-k="right" aria-label="O'ngga"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M9 5l7 7-7 7"/></svg></button>
     </div>
@@ -274,6 +280,8 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
     <div class="row" id="locRow"></div>
     <div class="eyebrow">Grafika</div>
     <div class="row" id="qualRow"></div>
+    <div class="eyebrow">Boshqaruv</div>
+    <div class="row" id="ctrlRow"></div>
     <div class="eyebrow">Kadr tezligi (FPS)</div>
     <div class="row" id="fpsRow"></div>
     <div class="eyebrow">Ovoz</div>
@@ -398,14 +406,14 @@ async function loadLocation(key){
   if(!hdrCache[L.file]){
     const url=await assetURL(L.file,'#?'); const tex=await new RGBELoader().loadAsync(url); URL.revokeObjectURL(url);
     tex.mapping=THREE.EquirectangularReflectionMapping;
-    hdrCache[L.file]={tex, sun:findSun(tex), hor:horizonColor(tex), ldr:ldrSky(tex)};
+    hdrCache[L.file]={tex, sun:findSun(tex), hor:horizonColor(tex), ldr:ldrSky(tex), soft:softSky(tex)};
   }
   const {tex,sun:S,hor}=hdrCache[L.file];
   locKey=key; store.set('loc',key);
   const open=L.type==='open';
-  scene.environment=tex; skyMat.uniforms.map.value=tex;
+  scene.environment=hdrCache[L.file].soft; skyMat.uniforms.map.value=hdrCache[L.file].soft;
   if(!open){ skyMat.uniforms.height.value=L.h; skyMat.uniforms.radius.value=L.R; }
-  sky.visible=!open; shadowPlane.visible=!open; scene.background=open?(quality==='min'?hdrCache[L.file].ldr:tex):null;
+  sky.visible=!open; shadowPlane.visible=!open; scene.background=open?(quality==='min'?hdrCache[L.file].ldr:hdrCache[L.file].soft):null;
   scene.fog=open?new THREE.Fog(hor,250,2600):null;
   if(open) ensureGround().visible=true; else if(openGround) openGround.visible=false;
   for(const k in worlds) worlds[k].group.visible=false;
@@ -718,11 +726,22 @@ function applyHeight(dt){
 }
 // ---- cheap world for weak phones: simple Lambert shading on roads, ground and buildings, and an
 // 8-bit copy of the sky photo instead of sampling the HDR every pixel
+// the sky the player looks at: the sun disc and the glare around it are capped so it does not dazzle
+// (reflections and lighting still use the full HDR photo)
+const SKY_MAX=2.2;
+function softSky(tex){
+  const {data,width,height}=tex.image, H=THREE.DataUtils.fromHalfFloat, F=THREE.DataUtils.toHalfFloat, out=new Uint16Array(data.length);
+  for(let i=0;i<width*height;i++){ const k=i*4, r=H(data[k]), g=H(data[k+1]), b=H(data[k+2]), l=Math.max(r,g,b);
+    const s=l>SKY_MAX?SKY_MAX*(1+Math.log(l/SKY_MAX)*.08)/l:1;
+    out[k]=F(r*s); out[k+1]=F(g*s); out[k+2]=F(b*s); out[k+3]=data[k+3]; }
+  const t=new THREE.DataTexture(out,width,height,THREE.RGBAFormat,THREE.HalfFloatType);
+  t.mapping=THREE.EquirectangularReflectionMapping; t.colorSpace=tex.colorSpace; t.magFilter=t.minFilter=THREE.LinearFilter; t.generateMipmaps=false; t.flipY=tex.flipY; t.needsUpdate=true; return t;
+}
 function ldrSky(tex){
   const {data,width,height}=tex.image, H=THREE.DataUtils.fromHalfFloat, W=256, Hh=128;
   const c=canvasTex(W,Hh,(g)=>{ const im=g.createImageData(W,Hh);
     for(let y=0;y<Hh;y++) for(let x=0;x<W;x++){ const sx=Math.floor(x/W*width), sy=Math.floor(y/Hh*height), k=(sy*width+sx)*4, o=(y*W+x)*4;
-      for(let ch=0;ch<3;ch++){ let v=H(data[k+ch])*.9; v=v/(1+v)*1.25; v=v<=.0031308?v*12.92:1.055*Math.pow(v,1/2.4)-.055; im.data[o+ch]=Math.max(0,Math.min(255,v*255)); } im.data[o+3]=255; }
+      for(let ch=0;ch<3;ch++){ let v=Math.min(H(data[k+ch]),SKY_MAX*1.1)*.9; v=v/(1+v)*1.25; v=v<=.0031308?v*12.92:1.055*Math.pow(v,1/2.4)-.055; im.data[o+ch]=Math.max(0,Math.min(255,v*255)); } im.data[o+3]=255; }
     g.putImageData(im,0,0); });
   c.mapping=THREE.EquirectangularReflectionMapping; c.wrapS=THREE.RepeatWrapping; return c;
 }
@@ -740,7 +759,7 @@ function applyCheapWorld(){
     if(on && !o.material.userData.full) o.material=cheapMat(o.material);
     else if(!on && o.material.userData.full) o.material=o.material.userData.full; });
   const L=LOCS[locKey], h=L&&hdrCache[L.file];
-  if(h && L.type==='open') scene.background=on?h.ldr:h.tex;
+  if(h && L.type==='open') scene.background=on?h.ldr:h.soft;
   if(!cheapHemi.parent) scene.add(cheapHemi);
   cheapHemi.visible=on && !!h && L.type==='open';
   if(h){ cheapHemi.color.copy(h.hor).multiplyScalar(1/Math.max(.05,Math.max(h.hor.r,h.hor.g,h.hor.b))); }
@@ -1171,10 +1190,40 @@ document.querySelectorAll('.tbtn').forEach(btn=>{
   btn.addEventListener('pointerdown',on); btn.addEventListener('pointerup',off); btn.addEventListener('pointercancel',off); btn.addEventListener('lostpointercapture',off);
 });
 addEventListener('contextmenu',e=>e.preventDefault());
+// ---- analog input: on-screen joystick and game controllers (Gamepad API)
+const joy={x:0,y:0,on:false};
+let ctrlMode=store.get('ctrl','joy');
+function applyCtrl(){ const j=ctrlMode==='joy'; $('#joy').hidden=!j; $('#arrows').hidden=j; }
+(()=>{ const el=$('#joy'), knob=el.querySelector('.joyknob'); let id=null;
+  const move=e=>{ const r=el.getBoundingClientRect(), R=r.width/2, dx=e.clientX-(r.left+R), dy=e.clientY-(r.top+R), d=Math.hypot(dx,dy), k=d>R?R/d:1;
+    joy.x=clamp(dx*k/R,-1,1); joy.y=clamp(-dy*k/R,-1,1); knob.style.transform=`translate(${dx*k}px,${dy*k}px)`; };
+  const end=()=>{ id=null; joy.on=false; joy.x=joy.y=0; knob.style.transform=''; el.classList.remove('on'); };
+  el.addEventListener('pointerdown',e=>{ e.preventDefault(); id=e.pointerId; try{ el.setPointerCapture(id); }catch(_){} joy.on=true; el.classList.add('on'); move(e); });
+  el.addEventListener('pointermove',e=>{ if(e.pointerId===id) move(e); });
+  for(const ev of ['pointerup','pointercancel','lostpointercapture']) el.addEventListener(ev,e=>{ if(e.pointerId===id) end(); });
+})();
+const pad={connected:false, prev:[], stick:{x:0,y:0}};
+addEventListener('gamepadconnected',()=>{ pad.connected=true; toast("O'yin pulti ulandi"); });
+addEventListener('gamepaddisconnected',()=>{ pad.connected=!!(navigator.getGamepads&&[...navigator.getGamepads()].some(Boolean)); });
+function readPad(){
+  const out={thr:0,brk:0,steer:0,hb:false,x:0,y:0,any:false};
+  if(!navigator.getGamepads) return out;
+  const g=[...navigator.getGamepads()].find(Boolean); if(!g) return out;
+  const dz=v=>Math.abs(v)<.15?0:(v-Math.sign(v)*.15)/.85, btn=i=>g.buttons[i]?g.buttons[i].value:0, pressed=i=>!!(g.buttons[i]&&g.buttons[i].pressed);
+  out.x=dz(g.axes[0]||0); out.y=-dz(g.axes[1]||0); out.steer=-out.x; out.thr=btn(7); out.brk=btn(6); out.hb=pressed(0);
+  // edge-triggered buttons: Y = get in/out, X = camera, B = horn, Start = pause
+  const edge=i=>pressed(i)&&!pad.prev[i];
+  if(state==='drive'){ if(edge(3)) toggleFoot(); if(edge(2)&&!HERO.onFoot) cycleCam(); if(edge(9)) togglePause(); }
+  if(pressed(1)!==!!pad.prev[1]) Snd.horn(pressed(1));
+  pad.prev=g.buttons.map(b=>b.pressed); out.any=out.thr>0||out.brk>0||out.x!==0||out.y!==0||out.hb; pad.connected=true;
+  return out;
+}
 function readInput(){
-  const k=keys;
-  return { thr:(k.KeyW||k.ArrowUp||tbtn.gas)?1:0, brk:(k.KeyS||k.ArrowDown||tbtn.brake)?1:0,
-    steer:((k.KeyA||k.ArrowLeft||tbtn.left)?1:0)-((k.KeyD||k.ArrowRight||tbtn.right)?1:0), hb:!!(k.Space||tbtn.hb) };
+  const k=keys, gp=readPad();
+  const jx=joy.on?joy.x:0;
+  const steer=((k.KeyA||k.ArrowLeft||tbtn.left)?1:0)-((k.KeyD||k.ArrowRight||tbtn.right)?1:0)-jx+gp.steer;
+  return { thr:Math.max((k.KeyW||k.ArrowUp||tbtn.gas)?1:0,gp.thr), brk:Math.max((k.KeyS||k.ArrowDown||tbtn.brake)?1:0,gp.brk),
+    steer:clamp(steer,-1,1), hb:!!(k.Space||tbtn.hb||gp.hb), mx:joy.on?joy.x:gp.x, my:joy.on?joy.y:gp.y };
 }
 
 /* ================= audio ================= */
@@ -1843,10 +1892,17 @@ function leaveFoot(){   // back to the car, e.g. when the mode or map changes
 function updateFoot(dt){
   const p=player, inp=readInput(), W=worlds[locKey];
   // controls: gas = walk (run after holding), brake = step back, left/right = turn, handbrake = jump
-  HERO.hold=inp.thr?HERO.hold+dt:0;
-  const want=inp.thr?(HERO.hold>.7?5.6:1.7):inp.brk?-1.1:0;
-  HERO.v+=clamp(want-HERO.v,-10*dt,7*dt);
-  p.h+=inp.steer*2.6*dt*(HERO.v<-.1?-1:1);
+  const mag=Math.min(1,Math.hypot(inp.mx||0,inp.my||0));
+  if(mag>.12){   // joystick / controller stick: walk in that direction, push further to run
+    const target=HERO.camYaw-Math.atan2(inp.mx,inp.my);
+    p.h+=clamp(wrapA(target-p.h),-9*dt,9*dt);
+    HERO.v+=clamp((mag>.85?5.6:1.7*mag/.85+.3)-HERO.v,-10*dt,7*dt);
+  } else {
+    HERO.hold=inp.thr?HERO.hold+dt:0;
+    const want=inp.thr?(HERO.hold>.7?5.6:1.7):inp.brk?-1.1:0;
+    HERO.v+=clamp(want-HERO.v,-10*dt,7*dt);
+    p.h+=inp.steer*2.6*dt*(HERO.v<-.1?-1:1);
+  }
   if(inp.hb && HERO.jumpT<=0 && HERO.act.jump){ HERO.jumpT=1; heroPlay('jump',.1); }
   HERO.jumpT-=dt;
   const ox=p.x, oz=p.z; p.x+=Math.sin(p.h)*HERO.v*dt; p.z+=Math.cos(p.h)*HERO.v*dt;
@@ -1872,7 +1928,7 @@ function updateFoot(dt){
   sun.position.set(p.x+sunDir.x*25,sunDir.y*25,p.z+sunDir.z*25); sun.target.position.set(p.x,0,p.z);
   shadowPlane.position.x=p.x; shadowPlane.position.z=p.z;
   // third-person camera over the shoulder
-  HERO.camYaw+=wrapA(p.h-HERO.camYaw)*Math.min(1,dt*(sp>.2?3:1.2));
+  HERO.camYaw+=wrapA(p.h-HERO.camYaw)*Math.min(1,dt*(mag>.12?.8:sp>.2?3:1.2));
   const cx=Math.sin(HERO.camYaw), cz=Math.cos(HERO.camYaw), portrait=innerHeight>innerWidth, dist=portrait?5.2:3.8;
   tmpV.set(p.x-cx*dist,1.9+(portrait?.6:0),p.z-cz*dist); camera.position.lerp(tmpV,1-Math.exp(-dt*8));
   camera.lookAt(p.x+cx*1.2,1.35,p.z+cz*1.2);
@@ -1992,7 +2048,7 @@ async function startDrive(){
   setLights(!!LOCS[locKey].night,true);
   camera.fov=55; camera.updateProjectionMatrix();
   camera.position.set(player.x-Math.sin(player.h)*8,2.4,player.z-Math.cos(player.h)*8);
-  show('#garage',false); show('#hud',true); show('#touch',isTouch); show('#hint',!isTouch);
+  show('#garage',false); show('#hud',true); show('#touch',isTouch); show('#hint',!isTouch); applyCtrl();
   hudSpd=-1; hudGear=''; $('#bestV').textContent=best;
   if(mode==='free') toast(isTouch?"Qo'l tormozi bilan drift qiling":"Probel bilan drift qiling");
   checkRotate();
@@ -2015,6 +2071,7 @@ function togglePause(force){
 function renderPause(){
   $('#locRow').innerHTML=Object.entries(LOCS).map(([k,v])=>`<button class="chip" data-ploc="${k}" aria-pressed="${k===locKey}">${v.label}</button>`).join('');
   $('#qualRow').innerHTML=[['min','Eng yengil'],['low','Tejamkor'],['high','Yuqori']].map(([k,l])=>`<button class="chip" data-q="${k}" aria-pressed="${k===quality}">${l}</button>`).join('');
+  $('#ctrlRow').innerHTML=[['joy','Joystik'],['btn','Tugmalar']].map(([k,l])=>`<button class="chip" data-ctrl="${k}" aria-pressed="${k===ctrlMode}">${l}</button>`).join('')+(pad.connected?'<span class="credit" style="align-self:center">Pult ulangan</span>':'');
   $('#fpsRow').innerHTML=`<button class="chip" data-fps="1" aria-pressed="${showFps}">Ko'rsatish</button><button class="chip" data-fps="0" aria-pressed="${!showFps}">Yashirish</button>`;
   $('#soundRow').innerHTML=`<button class="chip" data-snd="1" aria-pressed="${!Snd.muted}">Yoqilgan</button><button class="chip" data-snd="0" aria-pressed="${Snd.muted}">O'chirilgan</button>`;
 }
@@ -2023,6 +2080,7 @@ $('#pause').addEventListener('click',async e=>{
   if(el.dataset.ploc && mode!=='free'){ toast("Bu rejimda xarita o'zgarmaydi"); return; }
   if(el.dataset.ploc){ leaveFoot(); await switchLoc(el.dataset.ploc); if(state==='drive') startLife(); setLights(!!LOCS[locKey].night,true); renderPause(); }
   if(el.dataset.q){ setQuality(el.dataset.q); renderPause(); }
+  if(el.dataset.ctrl){ ctrlMode=el.dataset.ctrl; store.set('ctrl',ctrlMode); applyCtrl(); renderPause(); }
   if(el.dataset.fps){ showFps=el.dataset.fps==='1'; store.set('showFps',showFps); $('#fps').hidden=!showFps; renderPause(); }
   if(el.dataset.snd){ Snd.setMuted(el.dataset.snd==='0'); renderPause(); }
 });
@@ -2062,7 +2120,7 @@ function setQuality(q){
 function draw(){
   if(quality==='high'){
     if(!composer){ composer=new EffectComposer(renderer); composer.addPass(new RenderPass(scene,camera));
-      bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.22,.4,3.0); composer.addPass(bloom); composer.addPass(new OutputPass()); resize(); }
+      bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.16,.35,4.0); composer.addPass(bloom); composer.addPass(new OutputPass()); resize(); }
     composer.render();
   } else renderer.render(scene,camera);
 }
